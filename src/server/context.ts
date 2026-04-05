@@ -1,13 +1,16 @@
 import type { inferAsyncReturnType } from "@trpc/server";
 import type { CreateNextContextOptions } from "@trpc/server/adapters/next";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import { db } from "./db";
+import { db, ensureInitialized } from "./db";
 
 // Create context for tRPC
 // Works with both Next.js pages and fetch API
 export async function createContext(
   opts: CreateNextContextOptions | FetchCreateContextFnOptions | Record<string, never>
 ) {
+  // Ensure database is initialized (seeds data on first run)
+  await ensureInitialized();
+
   // Extract request from either Next.js or fetch adapter
   const req = "req" in opts ? opts.req : opts;
 

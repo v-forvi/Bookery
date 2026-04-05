@@ -1,33 +1,37 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
-// Create database connection
-// On Vercel/serverless, use /tmp for writable storage
-// Default to /tmp/biblio.db for production (Vercel), or use local path for development
-const isVercel = process.env.VERCEL_ENV || process.env.NODE_ENV === "production";
-const defaultDbPath = isVercel ? "file:/tmp/biblio.db" : "file:../../data/biblio.db";
-const dbPath = process.env.DATABASE_URL || defaultDbPath;
-const connectionString = dbPath.replace("file:", "");
+// For ESM environment
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Ensure data directory exists
-import { existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
+// Determine database paths
+const isVercel = !!process.env.VERCEL_ENV || process.env.NODE_ENV === "production";
 
-const dbDir = dirname(connectionString);
+// Path to the bundled seed database (read-only in production)
+const seedDbPath = join(__dirname, "../../public/biblio.db");
 
-// For Vercel/serverless, use /tmp if the path doesn't exist
-const writableDir = existsSync(dbDir) ? dbDir : "/tmp";
+// Path to the writable database
+// In production, use /tmp (writable)
+// In development, use the public database directly for simplicity
+const activeDbPath = isVercel ? "/tmp/biblio.db" : seedDbPath;
 
-if (!existsSync(writableDir)) {
-  mkdirSync(writableDir, { recursive: true });
+console.log("Database config:", { isVercel, seedDbPath, activeDbPath });
+
+// Ensure /tmp exists for production
+if (isVercel && !existsSync("/tmp")) {
+  mkdirSync("/tmp", { recursive: true });
 }
 
-// Use the writable directory for the database
-const finalDbPath = existsSync(dbDir) ? connectionString : `file:/tmp/biblio.db`;
+// Flag to ensure we only initialize once
+let initialized = false;
 
-// Create SQLite connection
-const sqlite = new Database(finalDbPath);
+// Create SQLite connection (will be replaced after seeding in production)
+let sqlite = new Database(activeDbPath);
 
 // Enable foreign keys
 sqlite.pragma("foreign_keys = ON");
@@ -35,35 +39,78 @@ sqlite.pragma("foreign_keys = ON");
 // Create drizzle instance
 export const db = drizzle(sqlite, { schema });
 
-// Initialize database schema on startup
-// This ensures tables exist on Vercel deployments
-async function initializeDatabase() {
-  // Check if patrons table exists by trying to query it
+// Initialize database on first request
+export async function ensureInitialized() {
+  if (initialized) return;
+
   try {
-    await sqlite.prepare("SELECT 1 FROM patrons LIMIT 1").get();
-  } catch (err) {
-    // Table doesn't exist, create it
-    console.log("Patrons table not found, creating schema...");
+    // In production, seed from bundled database if needed
+    if (isVercel) {
+      const booksCount = sqlite.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number } | undefined;
 
-    // Create patrons table
-    sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS patrons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        telegram_id INTEGER NOT NULL UNIQUE,
-        telegram_username TEXT,
-        full_name TEXT NOT NULL,
-        phone_number TEXT NOT NULL,
-        date_registered TEXT NOT NULL,
-        is_librarian INTEGER DEFAULT 0 NOT NULL
-      )
-    `);
+      // If no books and seed exists, copy seed database
+      if (!booksCount || booksCount.count === 0) {
+        if (existsSync(seedDbPath)) {
+          console.log("Production database empty, seeding from bundled database...");
 
-    console.log("Patrons table created");
+          // Close existing connection
+          sqlite.close();
+
+          // Copy the seed database file to /tmp
+          const seedData = readFileSync(seedDbPath);
+          writeFileSync(activeDbPath, seedData);
+
+          // Reconnect to the new database
+          sqlite = new Database(activeDbPath);
+          sqlite.pragma("foreign_keys = ON");
+
+          // Update the drizzle instance with new connection
+          Object.assign(db, drizzle(sqlite, { schema }));
+
+          console.log("Database seeded successfully!");
+        } else {
+          console.warn("Seed database not found at:", seedDbPath);
+        }
+      }
+    }
+
+    // Ensure patrons table exists
+    try {
+      sqlite.prepare("SELECT 1 FROM patrons LIMIT 1").get();
+    } catch (err) {
+      console.log("Creating patrons table...");
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS patrons (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          telegram_id INTEGER NOT NULL UNIQUE,
+          telegram_username TEXT,
+          full_name TEXT NOT NULL,
+          phone_number TEXT NOT NULL,
+          date_registered TEXT NOT NULL,
+          is_librarian INTEGER DEFAULT 0 NOT NULL
+        )
+      `);
+    }
+
+    // Log final book count
+    const finalCount = sqlite.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number };
+    console.log("Database initialized with", finalCount?.count ?? 0, "books");
+
+    initialized = true;
+  } catch (error) {
+    console.error("Error initializing database:", error);
   }
 }
 
-// Run initialization
-initializeDatabase().catch(console.error);
+// Run initialization when module is imported (for server startup)
+// In production, this happens on first request
+if (isVercel) {
+  // Delay initialization until first API request in production
+  console.log("Vercel environment - database will initialize on first request");
+} else {
+  // Initialize immediately in development
+  ensureInitialized().catch(console.error);
+}
 
 // Export for direct access if needed
 export { sqlite };
