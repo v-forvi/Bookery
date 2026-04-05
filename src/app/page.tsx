@@ -43,6 +43,11 @@ export default function Home() {
                   Scan Book
                 </Button>
               </Link>
+              <Link href="/archive">
+                <Button variant="ghost" size="sm">
+                  Archive
+                </Button>
+              </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger>
                   <Button variant="ghost" size="icon">
