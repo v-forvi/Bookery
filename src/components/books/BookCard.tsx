@@ -78,9 +78,22 @@ export function BookCard({ book, onEdit }: BookCardProps) {
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-2 text-base">
-                    {book.title}
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-2 text-base">
+                      {book.title}
+                    </h3>
+                    {/* Lending Status Badges */}
+                    {(book as any).status === 'on_loan' && (
+                      <Badge variant="secondary" className="ml-0 text-xs">
+                        On Loan
+                      </Badge>
+                    )}
+                    {(book as any).status === 'borrowed' && (book as any).borrowedFrom && (
+                      <Badge variant="outline" className="ml-0 text-xs">
+                        Borrowed from {(book as any).borrowedFrom}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
                     {book.author}
                   </p>
