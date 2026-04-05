@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { books, settings } from "../schema";
-import { eq, desc, like, or, sql } from "drizzle-orm";
+import { eq, desc, like, or, sql, isNull } from "drizzle-orm";
 import { visionService } from "../services/vision.service";
 import { googleBooksService } from "../services/google-books.service";
 import { metadataEnrichmentService } from "../services/metadata-enrichment.service";
@@ -24,26 +24,47 @@ export const booksRouter = router({
         offset: z.number().min(0).default(0),
         search: z.string().optional(),
         genre: z.string().optional(),
+        // Lending feature: ownership filters
+        ownership: z.enum(['all', 'owned', 'borrowed']).default('all'),
+        status: z.enum(['all', 'available', 'on_loan', 'borrowed']).default('all'),
+        includeArchived: z.boolean().default(false),
       })
     )
     .query(async ({ ctx, input }) => {
+      const { limit, offset, search, genre, ownership, status, includeArchived } = input;
+
       let query = ctx.db.select().from(books).$dynamic();
 
       // Search by title or author
-      if (input.search) {
+      if (search) {
         query = query.where(
           or(
-            like(books.title, `%${input.search}%`),
-            like(books.author, `%${input.search}%`)
+            like(books.title, `%${search}%`),
+            like(books.author, `%${search}%`)
           )
         );
+      }
+
+      // Filter by ownership
+      if (ownership !== 'all') {
+        query = query.where(eq(books.ownership, ownership));
+      }
+
+      // Filter by status
+      if (status !== 'all') {
+        query = query.where(eq(books.status, status));
+      }
+
+      // Exclude archived books unless explicitly requested
+      if (!includeArchived) {
+        query = query.where(isNull(books.archivedAt));
       }
 
       // Order by most recently added
       const results = await query
         .orderBy(desc(books.dateAdded))
-        .limit(input.limit)
-        .offset(input.offset);
+        .limit(limit)
+        .offset(offset);
 
       // Parse genres from JSON string
       return results.map((book) => ({
