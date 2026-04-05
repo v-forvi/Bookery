@@ -62,12 +62,17 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [editingBook, setEditingBook] = useState<(Book & { genres?: string[] }) | null>(null);
+  // Lending feature filters
+  const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'owned' | 'borrowed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'on_loan' | 'borrowed'>('all');
 
   const utils = trpc.useUtils();
 
   const { data, isLoading } = trpc.books.list.useQuery({
     search: searchQuery || undefined,
     genre: selectedGenre || undefined,
+    ownership: ownershipFilter,
+    status: statusFilter === 'all' ? undefined : statusFilter,
   });
 
   const books = data || [];
@@ -215,6 +220,31 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
               genres={allGenres}
             />
           )}
+
+          {/* Ownership Filter */}
+          <Select value={ownershipFilter} onValueChange={(value: any) => setOwnershipFilter(value)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Ownership" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Books</SelectItem>
+              <SelectItem value="owned">Owned</SelectItem>
+              <SelectItem value="borrowed">Borrowed</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="on_loan">On Loan</SelectItem>
+              <SelectItem value="borrowed">Borrowed</SelectItem>
+            </SelectContent>
+          </Select>
 
           <DropdownMenu>
             <DropdownMenuTrigger>
