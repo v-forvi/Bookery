@@ -11,6 +11,9 @@ import { conceptExtractionService } from "../services/concept-extraction.service
 import { conceptsRouter } from "./concepts";
 import { graphRouter } from "./graph";
 
+// Import lending feature router
+import { loansRouter } from "./loans";
+
 // Books router
 export const booksRouter = router({
   // List all books with pagination and filtering
@@ -664,6 +667,8 @@ export const appRouter = router({
   // Phase 1 routers
   concepts: conceptsRouter,
   graph: graphRouter,
+  // Lending feature router
+  loans: loansRouter,
 });
 
 export type AppRouter = typeof appRouter;
