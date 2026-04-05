@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { trpc as api } from '@/client/trpc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,11 +22,12 @@ interface ReturnModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  preselectedBook?: Book | null;
 }
 
 type Step = 'select-method' | 'scanning' | 'confirm';
 
-export function ReturnModal({ isOpen, onClose, onSuccess }: ReturnModalProps) {
+export function ReturnModal({ isOpen, onClose, onSuccess, preselectedBook }: ReturnModalProps) {
   const [step, setStep] = useState<Step>('select-method');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [activeLoan, setActiveLoan] = useState<any>(null);
@@ -36,6 +37,28 @@ export function ReturnModal({ isOpen, onClose, onSuccess }: ReturnModalProps) {
 
   const returnLoanMutation = api.loans.returnLoan.useMutation();
   const { data: activeLoans } = api.loans.getActive.useQuery();
+
+  // When preselectedBook changes, skip directly to confirm step
+  useEffect(() => {
+    if (preselectedBook) {
+      setSelectedBook(preselectedBook);
+
+      // Find the active loan for this book
+      if (activeLoans) {
+        const loan = [...activeLoans.loansOut, ...activeLoans.loansIn]
+          .find((l: any) => l.book.id === preselectedBook.id && l.loan.returnDate === null);
+
+        if (loan) {
+          setActiveLoan(loan);
+        }
+      }
+      setStep('confirm');
+    } else {
+      setSelectedBook(null);
+      setActiveLoan(null);
+      setStep('select-method');
+    }
+  }, [preselectedBook, isOpen, activeLoans]);
 
   const handleBookSelect = (book: Book) => {
     setSelectedBook(book);
@@ -108,6 +131,7 @@ export function ReturnModal({ isOpen, onClose, onSuccess }: ReturnModalProps) {
               onSelect={(method) => {
                 setStep('scanning');
               }}
+              mode="return"
             />
           </>
         )}
@@ -175,13 +199,24 @@ export function ReturnModal({ isOpen, onClose, onSuccess }: ReturnModalProps) {
             </div>
 
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setStep('select-method')}
-                disabled={loading}
-              >
-                Back
-              </Button>
+              {preselectedBook ? (
+                // When book is preselected (from book detail page), back button closes modal
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setStep('select-method')}
+                  disabled={loading}
+                >
+                  Back
+                </Button>
+              )}
               <Button
                 onClick={handleConfirm}
                 disabled={loading}

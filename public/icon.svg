@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <rect width="512" height="512" rx="100" fill="url(#gradient)"/>
+
+  <!-- Book shape -->
+  <rect x="100" y="100" width="312" height="340" rx="8" fill="white" fill-opacity="0.95"/>
+  <rect x="120" y="100" width="292" height="340" rx="8" fill="white" fill-opacity="0.9"/>
+
+  <!-- Book spine -->
+  <rect x="110" y="100" width="20" height="340" rx="4" fill="#6d28d9"/>
+
+  <!-- Book pages effect -->
+  <rect x="130" y="110" width="10" height="320" rx="2" fill="#f3f4f6"/>
+  <rect x="145" y="110" width="10" height="320" rx="2" fill="#f3f4f6"/>
+
+  <!-- Book icon/graphic on cover -->
+  <circle cx="256" cy="220" r="50" fill="#8b5cf6"/>
+  <path d="M220 220 L240 200 L256 220 L272 200 L292 220" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="256" cy="220" r="4" fill="white"/>
+
+  <!-- Connection dots (knowledge graph) -->
+  <circle cx="180" cy="320" r="8" fill="#a78bfa"/>
+  <circle cx="256" cy="360" r="8" fill="#a78bfa"/>
+  <circle cx="332" cy="320" r="8" fill="#a78bfa"/>
+
+  <!-- Connection lines -->
+  <line x1="180" y1="320" x2="256" y2="360" stroke="#a78bfa" stroke-width="3"/>
+  <line x1="256" y1="360" x2="332" y2="320" stroke="#a78bfa" stroke-width="3"/>
+  <line x1="180" y1="320" x2="332" y2="320" stroke="#a78bfa" stroke-width="2" stroke-dasharray="8 8"/>
+
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#6d28d9"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -62,7 +62,7 @@ export default function SettingsPage() {
   const preferred = preferredApi || "claude";
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black pb-20 md:pb-0">
       <header className="border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">

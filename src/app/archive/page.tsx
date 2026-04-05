@@ -27,7 +27,7 @@ export default function ArchivePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-6xl">
+    <div className="container mx-auto py-8 px-4 max-w-6xl pb-20 md:pb-0">
       <div className="flex items-center gap-2 mb-6">
         <Archive className="h-6 w-6" />
         <h1 className="text-2xl font-bold">Borrowed Books Archive</h1>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/client/trpc";
 import { BookCard } from "./BookCard";
-import { AddBookDialog } from "./AddBookDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AddBookDialog } from "./AddBookDialog";
 import {
   Select,
   SelectContent,
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, SlidersHorizontal, Download, ArrowUpDown } from "lucide-react";
+import { Search, SlidersHorizontal, Download, ArrowUpDown, Plus, Filter, X, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Book } from "@/server/schema";
 import { EditBookModal } from "./EditBookModal";
+import { cn } from "@/lib/utils";
 
 type SortOption = 'titleAsc' | 'titleDesc' | 'authorAsc' | 'authorDesc' | 'genre' | 'recent' | 'random';
 
@@ -44,7 +45,7 @@ function GenreFilter({ selectedGenre, onSelectGenre, genres }: GenreFilterProps)
       value={selectedGenre || "all"}
       onValueChange={(value) => onSelectGenre(value === "all" ? null : value)}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-full sm:w-[180px]">
         <SelectValue placeholder="Filter by genre" />
       </SelectTrigger>
       <SelectContent>
@@ -67,27 +68,25 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
   // Lending feature filters
   const [ownershipFilter, setOwnershipFilter] = useState<'all' | 'owned' | 'borrowed'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'on_loan' | 'borrowed'>('all');
+  // Mobile filter toggle
+  const [showFilters, setShowFilters] = useState(false);
 
   const utils = trpc.useUtils();
 
+  // Use separate state for actual search (only applied when user presses Enter or clicks Search)
+  const [activeSearch, setActiveSearch] = useState("");
+
   const { data, isLoading } = trpc.books.list.useQuery({
-    search: searchQuery || undefined,
+    search: activeSearch || undefined,
     genre: selectedGenre || undefined,
-    ownership: ownershipFilter,
+    ownership: ownershipFilter === 'all' ? undefined : ownershipFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
   });
 
   const books = data || [];
 
-  // Extract all unique genres from books
-  const allGenres = Array.from(
-    new Set(
-      books.flatMap((book) => {
-        const genres = typeof book.genres === 'string' ? JSON.parse(book.genres || '[]') : book.genres || [];
-        return genres;
-      })
-    )
-  ).sort();
+  // Client-side state for random sorting to avoid hydration mismatch
+  const [shuffledBooks, setShuffledBooks] = useState<BookWithParsedGenres[]>([]);
 
   // Sort books
   const sortedBooks: BookWithParsedGenres[] = useMemo(() => {
@@ -101,13 +100,10 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
         genres: parsedGenres,
       } as BookWithParsedGenres;
     });
+    // Skip random sort during SSR to avoid hydration mismatch
     if (sortBy === 'random') {
-      const shuffled = [...booksWithParsedGenres];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
+      // Return unsorted for SSR, client will shuffle via useEffect
+      return booksWithParsedGenres;
     }
     return booksWithParsedGenres.sort((a, b) => {
       switch (sortBy) {
@@ -135,6 +131,46 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
     });
   }, [books, sortBy]);
 
+  // Client-side only shuffling for random sort to avoid hydration mismatch
+  useEffect(() => {
+    if (sortBy === 'random') {
+      const toShuffle = [...sortedBooks];
+      for (let i = toShuffle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [toShuffle[i], toShuffle[j]] = [toShuffle[j], toShuffle[i]];
+      }
+      setShuffledBooks(toShuffle);
+    }
+  }, [sortBy, sortedBooks]);
+
+  // Use shuffled books for random sort, sorted books for everything else
+  const displayBooks = sortBy === 'random' ? shuffledBooks : sortedBooks;
+
+  // Extract all unique genres from displayBooks
+  const allGenres = Array.from(
+    new Set(
+      displayBooks.flatMap((book) => {
+        const genres = typeof book.genres === 'string' ? JSON.parse(book.genres || '[]') : book.genres || [];
+        return genres;
+      })
+    )
+  ).sort();
+
+  const handleSearchSubmit = () => {
+    setActiveSearch(searchQuery.trim());
+  };
+
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setActiveSearch("");
+  };
+
   const handleExport = async (format: "csv" | "json") => {
     // This would use the books.export endpoint
     const blob = new Blob([
@@ -159,50 +195,78 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
     URL.revokeObjectURL(url);
   };
 
+  const activeFilterCount =
+    (selectedGenre ? 1 : 0) +
+    (ownershipFilter !== 'all' ? 1 : 0) +
+    (statusFilter !== 'all' ? 1 : 0);
+
   return (
     <div className="space-y-6">
-      {/* Search and Filter Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 max-w-md">
+      {/* Search Bar - Always Visible */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Search books..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            onKeyDown={handleSearchKeyPress}
+            className="pl-9 pr-20"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-zinc-100 rounded"
+            >
+              <X className="h-4 w-4 text-zinc-400" />
+            </button>
+          )}
         </div>
+        <Button onClick={handleSearchSubmit} size="touch" disabled={isLoading}>
+          Search
+        </Button>
+      </div>
 
-        <div className="flex items-center gap-2">
-          {/* Grid Column Toggle */}
-          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
-            <button
-              onClick={() => setGridColumns(4)}
-              className={`px-3 py-1 rounded text-sm ${
-                gridColumns === 4 ? "bg-white dark:bg-zinc-700 shadow font-medium" : "hover:bg-zinc-200 dark:hover:bg-zinc-700"
-              }`}
-            >
-              4 cols
-            </button>
-            <button
-              onClick={() => setGridColumns(6)}
-              className={`px-3 py-1 rounded text-sm ${
-                gridColumns === 6 ? "bg-white dark:bg-zinc-700 shadow font-medium" : "hover:bg-zinc-200 dark:hover:bg-zinc-700"
-              }`}
-            >
-              6 cols
-            </button>
+      {/* Mobile Filter Toggle */}
+      <div className="flex md:hidden items-center justify-between">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg w-full justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            <span>Filters & Sort</span>
           </div>
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showFilters && "rotate-180")} />
+          </div>
+        </button>
+      </div>
 
+      {/* Filters Section - Collapsible on Mobile */}
+      <div className={cn(
+        "space-y-4",
+        // On mobile, show/hide based on toggle; on desktop, always show
+        "md:block",
+        !showFilters && "hidden md:block"
+      )}>
+        {/* Filters Row */}
+        <div className="flex flex-wrap gap-2">
           {/* Sort Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="flex-shrink-0">
                 <ArrowUpDown className="mr-2 h-4 w-4" />
-                Sort
+                <span className="hidden sm:inline">Sort</span>
+                <span className="sm:hidden">Sort</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="start">
               <DropdownMenuItem onClick={() => setSortBy('recent')}>
                 Recently Added
               </DropdownMenuItem>
@@ -224,17 +288,9 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {allGenres.length > 0 && (
-            <GenreFilter
-              selectedGenre={selectedGenre}
-              onSelectGenre={setSelectedGenre}
-              genres={allGenres}
-            />
-          )}
-
           {/* Ownership Filter */}
           <Select value={ownershipFilter} onValueChange={(value: any) => setOwnershipFilter(value)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[130px] flex-shrink-0">
               <SelectValue placeholder="Ownership" />
             </SelectTrigger>
             <SelectContent>
@@ -246,7 +302,7 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
 
           {/* Status Filter */}
           <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[130px] flex-shrink-0">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -257,45 +313,71 @@ export function BookList({ gridColumns, setGridColumns }: BookListProps) {
             </SelectContent>
           </Select>
 
+          {/* Genre Filter */}
+          {allGenres.length > 0 && (
+            <GenreFilter
+              selectedGenre={selectedGenre}
+              onSelectGenre={setSelectedGenre}
+              genres={allGenres}
+            />
+          )}
+
+          {/* Export Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="flex-shrink-0">
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExport("json")}>
                 <Download className="mr-2 h-4 w-4" />
-                Export as JSON
+                Export JSON
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("csv")}>
                 <Download className="mr-2 h-4 w-4" />
-                Export as CSV
+                Export CSV
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
 
-          <AddBookDialog />
+        {/* Desktop Grid Toggle - Hide on mobile */}
+        <div className="hidden md:flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+          <button
+            onClick={() => setGridColumns(4)}
+            className={`px-3 py-1 rounded text-sm ${
+              gridColumns === 4 ? "bg-white dark:bg-zinc-700 shadow font-medium" : "hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            }`}
+          >
+            4 cols
+          </button>
+          <button
+            onClick={() => setGridColumns(6)}
+            className={`px-3 py-1 rounded text-sm ${
+              gridColumns === 6 ? "bg-white dark:bg-zinc-700 shadow font-medium" : "hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            }`}
+          >
+            6 cols
+          </button>
         </div>
       </div>
 
-      {/* Books Grid - 5 columns */}
+      {/* Books Grid - 2 columns on mobile, responsive on larger screens */}
       {isLoading ? (
         <div className="text-center py-12">
           <p className="text-zinc-500 dark:text-zinc-400">Loading...</p>
         </div>
-      ) : sortedBooks.length > 0 ? (
+      ) : displayBooks.length > 0 ? (
         <>
-          <div className={`grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${
-            gridColumns === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-6'
-          }`}>
-            {sortedBooks.map((book) => (
+          <div className="grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {displayBooks.map((book) => (
               // @ts-expect-error - genres type mismatch after parsing, runtime is correct
               <BookCard key={book.id} book={book} onEdit={setEditingBook} />
             ))}
           </div>
           <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-            Showing {sortedBooks.length} book{sortedBooks.length !== 1 ? "s" : ""}
+            Showing {displayBooks.length} book{displayBooks.length !== 1 ? "s" : ""}
           </p>
         </>
       ) : (

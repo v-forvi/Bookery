@@ -1,36 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, X, Search, Edit } from "lucide-react";
 import { trpc } from "@/client/trpc";
-import { useRouter } from "next/navigation";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Book } from "@/server/schema";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent, SheetClose } from "@/components/ui/sheet";
 
 interface AddBookDialogProps {
-  trigger?: React.ReactNode;
+  trigger?: ({ setOpen }: { setOpen: (open: boolean) => void }) => React.ReactNode;
+  buttonClassName?: string;
 }
 
-export function AddBookDialog({ trigger }: AddBookDialogProps) {
-  const router = useRouter();
+export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
   const [isSearching, setIsSearching] = useState(false);
 
   // Manual entry form state
@@ -59,10 +45,11 @@ export function AddBookDialog({ trigger }: AddBookDialogProps) {
       utils.books.list.invalidate();
       setOpen(false);
       resetManualForm();
+      setSearchResults([]);
     },
   });
 
-  // Google Books search - use client to call query on demand
+  // Google Books search
   const trpcClient = trpc.useContext();
 
   const resetManualForm = () => {
@@ -78,10 +65,7 @@ export function AddBookDialog({ trigger }: AddBookDialogProps) {
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!manualForm.title || !manualForm.author) {
-      return;
-    }
+    if (!manualForm.title || !manualForm.author) return;
 
     await addBook.mutateAsync({
       title: manualForm.title,
@@ -99,9 +83,7 @@ export function AddBookDialog({ trigger }: AddBookDialogProps) {
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.title && !searchQuery.author && !searchQuery.isbn) {
-      return;
-    }
+    if (!searchQuery.title && !searchQuery.author && !searchQuery.isbn) return;
 
     setIsSearching(true);
     try {
@@ -138,198 +120,209 @@ export function AddBookDialog({ trigger }: AddBookDialogProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      {trigger ? (
-        trigger
-      ) : (
-        <DialogTrigger>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Book
-          </Button>
-        </DialogTrigger>
+    <>
+      {trigger && trigger({ setOpen })}
+      {!trigger && (
+        <button
+          onClick={() => setOpen(true)}
+          className={buttonClassName}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Book
+        </button>
       )}
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Add a Book</DialogTitle>
-          <DialogDescription>
-            Add a book manually or search Google Books
-          </DialogDescription>
-        </DialogHeader>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetHeader className="flex flex-row items-center justify-between px-4 py-3 border-b">
+          <div>
+            <SheetTitle className="text-base">Add a Book</SheetTitle>
+            <SheetDescription className="text-xs">Search or enter manually</SheetDescription>
+          </div>
+          <SheetClose onClick={() => { setOpen(false); setSearchResults([]); }}>
+            <X className="h-5 w-5" />
+          </SheetClose>
+        </SheetHeader>
 
-        <Tabs defaultValue="search" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="search">Search Google Books</TabsTrigger>
-            <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-          </TabsList>
+        <SheetContent>
+          {/* Tab Toggle */}
+          <div className="flex border-b mb-4">
+            <button
+              onClick={() => setActiveTab("search")}
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "search"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Search className="h-4 w-4 mr-1.5 inline" />
+              Search
+            </button>
+            <button
+              onClick={() => setActiveTab("manual")}
+              className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "manual"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Edit className="h-4 w-4 mr-1.5 inline" />
+              Manual
+            </button>
+          </div>
 
-          {/* Search Tab */}
-          <TabsContent value="search" className="space-y-4">
-            <div className="space-y-3">
+          {/* Search Tab Content */}
+          {activeTab === "search" && (
+            <div className="space-y-4 pb-4">
               <div>
-                <Label htmlFor="search-isbn">ISBN (fastest match)</Label>
+                <Label htmlFor="search-isbn" className="text-xs">ISBN</Label>
                 <Input
                   id="search-isbn"
-                  placeholder="e.g., 0374533555"
+                  placeholder="0374533555"
                   value={searchQuery.isbn}
-                  onChange={(e) =>
-                    setSearchQuery({ ...searchQuery, isbn: e.target.value })
-                  }
+                  onChange={(e) => setSearchQuery({ ...searchQuery, isbn: e.target.value })}
+                  className="h-10"
                 />
               </div>
-              <div className="text-center text-sm text-zinc-500">
-                or
+              <div className="text-center text-sm text-muted-foreground">
+                — or —
               </div>
               <div>
-                <Label htmlFor="search-title">Title</Label>
+                <Label htmlFor="search-title" className="text-xs">Title</Label>
                 <Input
                   id="search-title"
                   placeholder="Book title"
                   value={searchQuery.title}
-                  onChange={(e) =>
-                    setSearchQuery({ ...searchQuery, title: e.target.value })
-                  }
+                  onChange={(e) => setSearchQuery({ ...searchQuery, title: e.target.value })}
+                  className="h-10"
                 />
               </div>
               <div>
-                <Label htmlFor="search-author">Author</Label>
+                <Label htmlFor="search-author" className="text-xs">Author</Label>
                 <Input
                   id="search-author"
                   placeholder="Author name"
                   value={searchQuery.author}
-                  onChange={(e) =>
-                    setSearchQuery({ ...searchQuery, author: e.target.value })
-                  }
+                  onChange={(e) => setSearchQuery({ ...searchQuery, author: e.target.value })}
+                  className="h-10"
                 />
               </div>
               <Button
                 onClick={handleSearch}
                 disabled={isSearching || !searchQuery.isbn && !searchQuery.title && !searchQuery.author}
-                className="w-full"
+                className="w-full h-10"
               >
                 {isSearching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Search Google Books
               </Button>
-            </div>
 
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="space-y-2 mt-4">
-                <Label>Found {searchResults.length} result(s):</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-3 mt-4">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {searchResults.length} found
+                  </p>
                   {searchResults.map((result) => (
                     <div
                       key={result.id}
-                      className="flex gap-3 p-3 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      className="flex gap-3 p-3 bg-muted border rounded-lg"
                     >
                       {result.coverUrl && (
                         <img
                           src={result.coverUrl}
-                          alt={result.title}
-                          className="h-16 w-12 object-cover rounded"
+                          alt=""
+                          className="h-16 w-12 object-cover rounded flex-shrink-0"
                         />
                       )}
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-sm truncate">{result.title}</p>
-                        <p className="text-sm text-zinc-500 truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                           {result.authors?.join(", ")}
                         </p>
-                        {result.confidence && (
-                          <p className="text-xs text-zinc-400">
-                            Match: {Math.round(result.confidence * 100)}%
-                          </p>
-                        )}
                       </div>
                       <Button
-                        size="sm"
                         variant="outline"
+                        size="sm"
                         onClick={() => addFromSearch(result)}
                         disabled={addBook.isPending}
+                        className="h-8 px-3 flex-shrink-0"
                       >
                         Add
                       </Button>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </TabsContent>
+              )}
+            </div>
+          )}
 
-          {/* Manual Entry Tab */}
-          <TabsContent value="manual">
-            <form onSubmit={handleManualSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    required
-                    value={manualForm.title}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, title: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="author">Author *</Label>
-                  <Input
-                    id="author"
-                    required
-                    value={manualForm.author}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, author: e.target.value })
-                    }
-                  />
-                </div>
+          {/* Manual Entry Tab Content */}
+          {activeTab === "manual" && (
+            <form onSubmit={handleManualSubmit} className="space-y-4 pb-4">
+              <div>
+                <Label htmlFor="title" className="text-xs">Title *</Label>
+                <Input
+                  id="title"
+                  required
+                  value={manualForm.title}
+                  onChange={(e) => setManualForm({ ...manualForm, title: e.target.value })}
+                  className="h-10"
+                />
+              </div>
+              <div>
+                <Label htmlFor="author" className="text-xs">Author *</Label>
+                <Input
+                  id="author"
+                  required
+                  value={manualForm.author}
+                  onChange={(e) => setManualForm({ ...manualForm, author: e.target.value })}
+                  className="h-10"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="isbn">ISBN</Label>
+                  <Label htmlFor="isbn" className="text-xs">ISBN</Label>
                   <Input
                     id="isbn"
-                    placeholder="10 or 13 digit"
+                    placeholder="Optional"
                     value={manualForm.isbn}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, isbn: e.target.value })
-                    }
+                    onChange={(e) => setManualForm({ ...manualForm, isbn: e.target.value })}
+                    className="h-10"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="year">Publication Year</Label>
+                  <Label htmlFor="year" className="text-xs">Year</Label>
                   <Input
                     id="year"
                     type="number"
-                    placeholder="e.g., 2020"
+                    placeholder="2020"
                     value={manualForm.publicationYear}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, publicationYear: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="genres">Genres (comma-separated)</Label>
-                  <Input
-                    id="genres"
-                    placeholder="e.g., Fiction, Science Fiction"
-                    value={manualForm.genres}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, genres: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Brief description..."
-                    value={manualForm.description}
-                    onChange={(e) =>
-                      setManualForm({ ...manualForm, description: e.target.value })
-                    }
-                    rows={3}
+                    onChange={(e) => setManualForm({ ...manualForm, publicationYear: e.target.value })}
+                    className="h-10"
                   />
                 </div>
               </div>
+              <div>
+                <Label htmlFor="genres" className="text-xs">Genres</Label>
+                <Input
+                  id="genres"
+                  placeholder="Fiction, Sci-Fi"
+                  value={manualForm.genres}
+                  onChange={(e) => setManualForm({ ...manualForm, genres: e.target.value })}
+                  className="h-10"
+                />
+              </div>
+              <div>
+                <Label htmlFor="description" className="text-xs">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Optional"
+                  value={manualForm.description}
+                  onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -338,16 +331,14 @@ export function AddBookDialog({ trigger }: AddBookDialogProps) {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={addBook.isPending}>
-                  {addBook.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
+                  {addBook.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Add Book
                 </Button>
               </div>
             </form>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

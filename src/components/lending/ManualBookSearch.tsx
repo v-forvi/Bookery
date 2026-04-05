@@ -13,24 +13,25 @@ interface ManualBookSearchProps {
 }
 
 export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) {
-  const [query, setQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const searchQuery = api.loans.searchBook.useQuery(
+  const utils = api.useUtils();
+
+  // Use the query reactively - it will fetch when enabled is true
+  const { data: results = [], isLoading, refetch } = api.loans.searchBook.useQuery(
     { query: searchInput },
-    { enabled: false, retry: false }
+    {
+      enabled: false, // Only fetch when we explicitly call refetch
+      retry: false,
+    }
   );
 
   const handleSearch = async () => {
     if (searchInput.trim().length < 2) return;
 
-    setSearching(true);
-    try {
-      await searchQuery.refetch();
-    } finally {
-      setSearching(false);
-    }
+    setHasSearched(true);
+    await refetch();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -39,8 +40,8 @@ export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) 
     }
   };
 
-  const results = searchQuery.data || [];
-  const searched = searchInput.length > 0;
+  // Show results after user has searched
+  const showResults = hasSearched || results.length > 0;
 
   return (
     <div className="space-y-4">
@@ -56,10 +57,10 @@ export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) 
         <div className="flex gap-2">
           <Button
             onClick={handleSearch}
-            disabled={searchInput.trim().length < 2 || searching}
+            disabled={searchInput.trim().length < 2 || isLoading}
             className="flex-1"
           >
-            {searching || searchQuery.isLoading ? (
+            {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Searching...
@@ -78,11 +79,11 @@ export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) 
         </div>
       </div>
 
-      {searched && (
+      {showResults && (
         <div className="space-y-2">
           {results.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">
-              No books found. Try different search terms or add this book first.
+              {isLoading ? 'Searching...' : 'No books found. Try different search terms or add this book first.'}
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">

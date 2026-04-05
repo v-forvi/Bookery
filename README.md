@@ -1,4 +1,11 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Biblio Web Application
+
+A Next.js application for managing a personal book library with features like:
+- Book cataloging from shelf photos (OCR/Vision)
+- Metadata enrichment via external APIs
+- Book search and filtering
+- Lending/borrowing tracking
+- Knowledge graph visualization
 
 ## Getting Started
 
@@ -6,31 +13,58 @@ First, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file in the `web` directory:
 
-## Learn More
+```bash
+# Database (SQLite - path relative to web directory)
+DATABASE_URL=file:../../data/biblio.db
 
-To learn more about Next.js, take a look at the following resources:
+# Optional: External API keys for enhanced features
+GOOGLE_BOOKS_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Framework**: Next.js 16 with App Router
+- **Database**: SQLite with Drizzle ORM
+- **API**: tRPC for type-safe queries
+- **UI**: Tailwind CSS + shadcn/ui components
+- **Vision**: Claude/Gemini APIs for OCR
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+web/
+├── src/
+│   ├── app/           # Next.js App Router pages
+│   ├── components/    # React components
+│   ├── server/
+│   │   ├── routers/   # tRPC routers
+│   │   ├── services/  # Business logic
+│   │   └── schema.ts  # Database schema
+│   └── client/        # tRPC client setup
+└── public/            # Static assets
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Troubleshooting
+
+For common issues and solutions, see the [troubleshooting guide](../../docs/troubleshooting.md).
+
+## Development Notes
+
+### Search Implementation
+Search uses SQL `LIKE` with case-insensitive matching. The Drizzle ORM `like()` helper has issues with SQLite, so raw SQL fragments are used instead. See `/src/server/routers/root.ts` for the working implementation.
+
+### Adding New Features
+1. Add database columns to `schema.ts`
+2. Create migration if needed
+3. Add tRPC procedures in `routers/root.ts`
+4. Create UI components in `components/`
+5. Add pages in `app/`

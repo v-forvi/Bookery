@@ -142,7 +142,7 @@ export default function GraphPage() {
   }, [router]);
 
   return (
-    <div className="h-screen w-full bg-gray-50 relative flex flex-col">
+    <div className="h-screen w-full bg-gray-50 relative flex flex-col md:h-screen">
       {/* Graph Controls */}
       <GraphControls
         onSearch={handleSearch}

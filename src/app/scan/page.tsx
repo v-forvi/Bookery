@@ -2,27 +2,55 @@
 
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { Camera, Upload, Check, X, BookOpen, Network, Loader2, Layers, Library } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Camera, Upload, Check, X, BookOpen, Loader2, Layers, Library, Handshake, ArrowLeft, RotateCcw } from "lucide-react";
 import { trpc } from "@/client/trpc";
-import { useTemporaryBookStore } from "@/stores/temporary-book.store";
+import { LoanOutModal } from "@/components/lending/LoanOutModal";
+import { ReturnModal } from "@/components/lending/ReturnModal";
+import { CameraCaptureButton } from "@/components/CameraCapture";
 
-type ScanMode = "single" | "batch";
+type ScanMode = "loan" | "import" | "return";
+
+// Helper function to call tRPC query outside of React hooks
+async function callTrpcQuery(procPath: string, input: any) {
+  // Filter out null and undefined values
+  const cleanInput = Object.fromEntries(
+    Object.entries(input).filter(([_, value]) => value !== null && value !== undefined)
+  );
+
+  const url = `/api/trpc/${procPath}?input=${encodeURIComponent(JSON.stringify(cleanInput))}`;
+  console.log('Calling API:', url);
+  const response = await fetch(url);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('API Error:', errorText);
+    throw new Error(`Query failed: ${response.statusText} - ${errorText}`);
+  }
+  const data = await response.json();
+  console.log('API response:', data);
+  const result = data.result?.data;
+  console.log('Extracted result:', result);
+  return result;
+}
 
 export default function ScanPage() {
   const router = useRouter();
-  const setTemporaryBook = useTemporaryBookStore(state => state.setTemporaryBook);
-  const temporaryBook = useTemporaryBookStore(state => state.temporaryBook);
-  const clearTemporaryBook = useTemporaryBookStore(state => state.clearTemporaryBook);
+  const searchParams = useSearchParams();
 
-  const [scanMode, setScanMode] = useState<ScanMode>("batch");
-  const [selectedIntent, setSelectedIntent] = useState<"add" | "loaned" | "testing">("add");
-  const [lenderName, setLenderName] = useState("");
+  // Read mode from URL, default to 'loan'
+  const initialMode = (searchParams.get('mode') as ScanMode) || 'loan';
+
+  const [scanMode, setScanMode] = useState<ScanMode>(initialMode);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
   const [batchResult, setBatchResult] = useState<any>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [existingBook, setExistingBook] = useState<any>(null);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [checkingExisting, setCheckingExisting] = useState(false);
+  const [bookNotFound, setBookNotFound] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -42,6 +70,9 @@ export default function ScanPage() {
     setScanError(null);
     setScanResult(null);
     setBatchResult(null);
+    setExistingBook(null);
+    setShowLoanModal(false);
+    setBookNotFound(false);
 
     try {
       const reader = new FileReader();
@@ -49,10 +80,62 @@ export default function ScanPage() {
         const base64 = event.target?.result as string;
 
         try {
-          if (scanMode === "single") {
+          if (scanMode === "loan") {
+            // Scan to find existing book for loaning
             const result = await scanPreview.mutateAsync({ imageData: base64 });
             setScanResult(result);
+
+            // Check if book exists in library
+            setCheckingExisting(true);
+            try {
+              console.log('OCR Result - Title:', result.title);
+              console.log('OCR Result - Author:', result.author);
+              const existing = await callTrpcQuery('books.findExisting', {
+                title: result.title,
+                author: result.author,
+              });
+              console.log('Existing book found:', existing);
+              if (existing) {
+                setExistingBook(existing);
+              } else {
+                console.log('No existing book found, setting bookNotFound=true');
+                setBookNotFound(true);
+              }
+            } catch (err) {
+              console.error('Error checking existing book:', err);
+              setBookNotFound(true);
+            } finally {
+              setCheckingExisting(false);
+            }
+          } else if (scanMode === "return") {
+            // Return mode - same as loan mode but shows return UI
+            const result = await scanPreview.mutateAsync({ imageData: base64 });
+            setScanResult(result);
+
+            // Check if book exists in library
+            setCheckingExisting(true);
+            try {
+              console.log('OCR Result - Title:', result.title);
+              console.log('OCR Result - Author:', result.author);
+              const existing = await callTrpcQuery('books.findExisting', {
+                title: result.title,
+                author: result.author,
+              });
+              console.log('Existing book found:', existing);
+              if (existing) {
+                setExistingBook(existing);
+              } else {
+                console.log('No existing book found, setting bookNotFound=true');
+                setBookNotFound(true);
+              }
+            } catch (err) {
+              console.error('Error checking existing book:', err);
+              setBookNotFound(true);
+            } finally {
+              setCheckingExisting(false);
+            }
           } else {
+            // Import mode - batch add from shelf
             const result = await batchAddFromShelf.mutateAsync({ imageData: base64 });
             setBatchResult(result);
           }
@@ -72,46 +155,49 @@ export default function ScanPage() {
     setScanResult(null);
     setBatchResult(null);
     setScanError(null);
+    setExistingBook(null);
+    setShowLoanModal(false);
+    setBookNotFound(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleDone = () => {
-    router.push("/graph");
+  const handleLoanOut = () => {
+    if (existingBook) {
+      if (scanMode === "return") {
+        setShowReturnModal(true);
+      } else {
+        setShowLoanModal(true);
+      }
+    }
   };
 
-  // Temporary book preview (from "See where it fits" mode)
-  if (temporaryBook) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-          <div className="text-center mb-6">
-            <Network className="h-12 w-12 mx-auto mb-4 text-blue-600" />
-            <h2 className="text-xl font-semibold mb-2">Previewing Connections</h2>
-            <p className="text-gray-600">
-              "{temporaryBook.title}" is being previewed to see how it connects to your library.
-            </p>
-          </div>
+  const handleLoanSuccess = () => {
+    setShowLoanModal(false);
+    utils.books.list.invalidate();
+    utils.loans.getActive.invalidate();
+    router.push("/");
+  };
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                clearTemporaryBook();
-                router.push("/graph");
-              }}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
-            >
-              Discard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleReturnSuccess = () => {
+    setShowReturnModal(false);
+    utils.books.list.invalidate();
+    utils.loans.getActive.invalidate();
+    router.push("/");
+  };
+
+  const handleDone = () => {
+    router.push("/");
+  };
+
+  const handleModeChange = (mode: ScanMode) => {
+    setScanMode(mode);
+    handleRetake();
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       {/* Header */}
       <div className="bg-white border-b px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center gap-4">
@@ -119,40 +205,56 @@ export default function ScanPage() {
             onClick={() => router.back()}
             className="p-2 hover:bg-gray-100 rounded"
           >
-            <X className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-xl font-semibold">
-            {scanMode === "batch" ? "Import Books from Shelf" : "Scan Book"}
+            {scanMode === "loan" ? "Loan Out Book" :
+             scanMode === "return" ? "Return Book" :
+             "Import Books"}
           </h1>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto p-4">
-        {/* Mode Toggle */}
+        {/* Mode Toggle - hide when showing results */}
         {!scanResult && !batchResult && (
-          <div className="mb-4 flex justify-center">
+          <div className="mb-6 flex justify-center">
             <div className="bg-white rounded-lg shadow p-1 flex gap-1">
               <button
-                onClick={() => setScanMode("batch")}
-                className={`px-4 py-2 rounded flex items-center gap-2 ${
-                  scanMode === "batch"
+                onClick={() => handleModeChange("loan")}
+                className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
+                  (scanMode as string) === "loan"
+                    ? "bg-orange-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Handshake className="h-4 w-4" />
+                <span className="hidden sm:inline">Loan Out</span>
+                <span className="sm:hidden">Loan</span>
+              </button>
+              <button
+                onClick={() => handleModeChange("return")}
+                className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
+                  (scanMode as string) === "return"
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Check className="h-4 w-4" />
+                <span className="hidden sm:inline">Return</span>
+                <span className="sm:hidden">Return</span>
+              </button>
+              <button
+                onClick={() => handleModeChange("import")}
+                className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
+                  (scanMode as string) === "import"
                     ? "bg-blue-600 text-white"
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
                 <Layers className="h-4 w-4" />
-                Bookshelf Photo
-              </button>
-              <button
-                onClick={() => setScanMode("single")}
-                className={`px-4 py-2 rounded flex items-center gap-2 ${
-                  scanMode === "single"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                <BookOpen className="h-4 w-4" />
-                Single Book
+                <span className="hidden sm:inline">Import</span>
+                <span className="sm:hidden">Add</span>
               </button>
             </div>
           </div>
@@ -163,14 +265,18 @@ export default function ScanPage() {
           <div className="bg-white rounded-lg shadow p-8 text-center">
             <Camera className="h-16 w-16 mx-auto mb-4 text-gray-400" />
             <h2 className="text-xl font-semibold mb-2">
-              {scanMode === "batch"
-                ? "Upload a Bookshelf Photo"
-                : "Upload a Book Cover Photo"}
+              {scanMode === "loan"
+                ? "Scan Book to Loan Out"
+                : scanMode === "return"
+                ? "Scan Book to Return"
+                : "Upload a Bookshelf Photo"}
             </h2>
             <p className="text-gray-600 mb-6">
-              {scanMode === "batch"
-                ? "Take a photo of your bookshelf. We'll extract all visible titles and authors using AI, then add them to your library."
-                : "Take a photo of a book cover and we'll extract the title, author, and other metadata using AI."}
+              {scanMode === "loan"
+                ? "Take a photo of the book cover. We'll find it in your library so you can loan it out."
+                : scanMode === "return"
+                ? "Take a photo of the book cover. We'll find it in your library so you can mark it as returned."
+                : "Take a photo of your bookshelf. We'll extract all visible titles and add them to your library."}
             </p>
 
             <input
@@ -181,23 +287,48 @@ export default function ScanPage() {
               className="hidden"
             />
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isScanning || batchAddFromShelf.isPending || scanPreview.isPending}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {(isScanning || batchAddFromShelf.isPending || scanPreview.isPending) ? (
-                <>
-                  <Loader2 className="h-5 w-5 inline mr-2 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-5 w-5 inline mr-2" />
-                  Choose Photo
-                </>
-              )}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Camera button - shown first on mobile */}
+              <CameraCaptureButton
+                onCapture={(base64) => {
+                  // Create a fake File object from base64
+                  const base64Data = base64.split(',')[1];
+                  const byteCharacters = atob(base64Data);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+                  // Trigger the file select handler with the blob
+                  const fakeEvent = {
+                    target: { files: [new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })] }
+                  } as unknown as React.ChangeEvent<HTMLInputElement>;
+                  handleFileSelect(fakeEvent);
+                }}
+                disabled={isScanning || batchAddFromShelf.isPending || scanPreview.isPending}
+              />
+
+              {/* File upload button */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning || batchAddFromShelf.isPending || scanPreview.isPending}
+                className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {(isScanning || batchAddFromShelf.isPending || scanPreview.isPending) ? (
+                  <>
+                    <Loader2 className="h-5 w-5 inline mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-5 w-5 inline mr-2" />
+                    Choose from Gallery
+                  </>
+                )}
+              </button>
+            </div>
 
             {scanError && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
@@ -208,26 +339,27 @@ export default function ScanPage() {
             <div className="mt-6 p-4 bg-gray-50 rounded text-left text-sm text-gray-600">
               <p className="font-medium mb-2">Tips for best results:</p>
               <ul className="list-disc list-inside space-y-1">
-                {scanMode === "batch" ? (
+                {scanMode === "loan" || scanMode === "return" ? (
+                  <>
+                    <li>Use good lighting - avoid shadows on the book cover</li>
+                    <li>Hold the camera parallel to the book</li>
+                    <li>Make sure the title is clearly visible</li>
+                    <li>The book must already be in your library</li>
+                  </>
+                ) : (
                   <>
                     <li>Use good lighting - avoid shadows on the books</li>
                     <li>Hold the camera parallel to the shelf</li>
                     <li>Make sure book spines are clearly visible</li>
                     <li>JPG or PNG formats work best</li>
                   </>
-                ) : (
-                  <>
-                    <li>Use good lighting - avoid shadows on the book cover</li>
-                    <li>Hold the camera parallel to the book spine</li>
-                    <li>Make sure the title and author are clearly visible</li>
-                    <li>JPG or PNG formats work best</li>
-                  </>
                 )}
               </ul>
             </div>
           </div>
-        ) : scanMode === "single" && scanResult ? (
-          /* Single Book Result */
+
+        /* ========== LOAN/RETURN MODE: Single Book Result ========== */
+        ) : (scanMode === "loan" || scanMode === "return") && scanResult ? (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex gap-4 mb-6">
               {scanResult.coverUrl ? (
@@ -255,23 +387,73 @@ export default function ScanPage() {
               </div>
             </div>
 
+            {/* Status indicator */}
+            {checkingExisting ? (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-center text-blue-600">
+                <Loader2 className="h-5 w-5 inline mr-2 animate-spin" />
+                Searching your library...
+              </div>
+            ) : bookNotFound ? (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-red-800 font-medium">
+                  ✗ This book was not found in your library.
+                </p>
+                <p className="text-sm text-red-600">
+                  You can only loan out books that are already in your library.
+                  <br />
+                  <span className="text-xs">
+                    Found: "{scanResult.title}" {scanResult.author && `by ${scanResult.author}`}
+                  </span>
+                </p>
+              </div>
+            ) : existingBook ? (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded">
+                <p className="text-green-800 font-medium">
+                  ✓ Found in your library!
+                </p>
+                <p className="text-sm text-green-600">
+                  {scanMode === "return"
+                    ? `"${existingBook.title}" is ready to be returned.`
+                    : `"${existingBook.title}" is ready to be loaned out.`
+                  }
+                </p>
+              </div>
+            ) : null}
+
             <div className="flex gap-2">
               <button
                 onClick={handleRetake}
                 className="px-4 py-2 border rounded hover:bg-gray-50"
               >
-                Retake
+                Try Different Photo
               </button>
-              <button
-                onClick={handleDone}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Done
-              </button>
+              {existingBook && (
+                <button
+                  onClick={handleLoanOut}
+                  className={`flex-1 px-4 py-2 text-white rounded flex items-center justify-center gap-2 ${
+                    scanMode === "return"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-orange-600 hover:bg-orange-700"
+                  }`}
+                >
+                  {scanMode === "return" ? (
+                    <>
+                      <RotateCcw className="h-4 w-4" />
+                      Return This Book
+                    </>
+                  ) : (
+                    <>
+                      <Handshake className="h-4 w-4" />
+                      Loan Out This Book
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
-        ) : batchResult ? (
-          /* Batch Result */
+
+        /* ========== IMPORT MODE: Batch Result ========== */
+        ) : scanMode === "import" && batchResult ? (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-center mb-6">
               <Library className="h-12 w-12 mx-auto mb-4 text-blue-600" />
@@ -368,6 +550,26 @@ export default function ScanPage() {
           </div>
         ) : null}
       </div>
+
+      {/* Loan Out Modal */}
+      {showLoanModal && existingBook && (
+        <LoanOutModal
+          isOpen={showLoanModal}
+          onClose={() => setShowLoanModal(false)}
+          onSuccess={handleLoanSuccess}
+          preselectedBook={existingBook}
+        />
+      )}
+
+      {/* Return Modal */}
+      {showReturnModal && existingBook && (
+        <ReturnModal
+          isOpen={showReturnModal}
+          onClose={() => setShowReturnModal(false)}
+          onSuccess={handleReturnSuccess}
+          preselectedBook={existingBook}
+        />
+      )}
     </div>
   );
 }

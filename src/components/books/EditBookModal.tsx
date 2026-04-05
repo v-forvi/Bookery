@@ -30,6 +30,7 @@ export function EditBookModal({ book, isOpen, onClose }: EditBookModalProps) {
   const updateBook = trpc.books.update.useMutation({
     onSuccess: () => {
       utils.books.list.invalidate();
+      utils.books.byId.invalidate({ id: book.id });
       utils.graph.getGraphData.invalidate();
       onClose();
     },

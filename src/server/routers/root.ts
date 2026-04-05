@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { books, settings } from "../schema";
-import { eq, desc, like, or, sql, isNull } from "drizzle-orm";
+import { eq, desc, or, sql, isNull } from "drizzle-orm";
 import { visionService } from "../services/vision.service";
 import { googleBooksService } from "../services/google-books.service";
 import { metadataEnrichmentService } from "../services/metadata-enrichment.service";
@@ -33,38 +33,60 @@ export const booksRouter = router({
     .query(async ({ ctx, input }) => {
       const { limit, offset, search, genre, ownership, status, includeArchived } = input;
 
+      console.log('Backend received:', { search, genre, ownership, status, includeArchived });
+
       let query = ctx.db.select().from(books).$dynamic();
 
-      // Search by title or author
+      // Build conditions array
+      const conditions: any[] = [];
+
+      // Search by title or author (case-insensitive)
       if (search) {
-        query = query.where(
-          or(
-            like(books.title, `%${search}%`),
-            like(books.author, `%${search}%`)
-          )
+        console.log('Applying search filter:', search);
+        conditions.push(
+          sql`(
+            LOWER(${books.title}) LIKE LOWER(${'%' + search + '%'})
+            OR LOWER(${books.author}) LIKE LOWER(${'%' + search + '%'})
+          )`
         );
       }
 
       // Filter by ownership
       if (ownership !== 'all') {
-        query = query.where(eq(books.ownership, ownership));
+        console.log('Applying ownership filter:', ownership);
+        conditions.push(eq(books.ownership, ownership));
       }
 
       // Filter by status
       if (status !== 'all') {
-        query = query.where(eq(books.status, status));
+        console.log('Applying status filter:', status);
+        conditions.push(eq(books.status, status));
       }
 
       // Exclude archived books unless explicitly requested
       if (!includeArchived) {
-        query = query.where(isNull(books.archivedAt));
+        conditions.push(isNull(books.archivedAt));
       }
+
+      // Apply all conditions with AND
+      if (conditions.length > 0) {
+        query = query.where(sql`${conditions.reduce((acc, cond, i) =>
+          i === 0 ? cond : sql`${acc} AND ${cond}`
+        )}`);
+      }
+
+      console.log('Executing query...');
 
       // Order by most recently added
       const results = await query
         .orderBy(desc(books.dateAdded))
         .limit(limit)
         .offset(offset);
+
+      console.log('Query returned:', results.length, 'books');
+      if (results.length > 0) {
+        console.log('First book:', results[0].title);
+      }
 
       // Parse genres from JSON string
       return results.map((book) => ({
@@ -90,6 +112,102 @@ export const booksRouter = router({
       return {
         ...book,
         genres: book.genres ? JSON.parse(book.genres) : [],
+      };
+    }),
+
+  // Find existing book by title/author/isbn (for scan-to-loan flow)
+  // Matching strategy:
+  // 1. Try exact ISBN match first
+  // 2. Try exact title match (case-insensitive)
+  // 3. Try fuzzy match: require at least 2 key words to match
+  findExisting: publicProcedure
+    .input(z.object({
+      title: z.string(),
+      author: z.string().optional(),
+      isbn: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Helper to clean and extract words
+      const extractWords = (text: string) =>
+        text.toLowerCase()
+          .replace(/[^\w\s]/g, ' ')  // Replace punctuation with spaces
+          .split(/\s+/)
+          .filter(w => w.length > 2)  // Only significant words
+          .filter((w, i, arr) => arr.indexOf(w) === i); // Unique words
+
+      // 1. Exact ISBN match (if provided)
+      if (input.isbn) {
+        const [byIsbn] = await ctx.db
+          .select()
+          .from(books)
+          .where(eq(books.isbn, input.isbn))
+          .limit(1);
+        if (byIsbn) {
+          return { ...byIsbn, genres: byIsbn.genres ? JSON.parse(byIsbn.genres) : [] };
+        }
+      }
+
+      // 2. Exact title match (case-insensitive, ignoring punctuation)
+      const cleanTitle = input.title.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const [byExactTitle] = await ctx.db
+        .select()
+        .from(books)
+        .where(sql`LOWER(REPLACE(${books.title}, ',', '')) = ${cleanTitle}`)
+        .limit(1);
+      if (byExactTitle) {
+        return { ...byExactTitle, genres: byExactTitle.genres ? JSON.parse(byExactTitle.genres) : [] };
+      }
+
+      // 3. Fuzzy match: require at least 2 key words to match
+      const searchWords = extractWords(input.title);
+
+      if (searchWords.length === 0) {
+        return null;
+      }
+
+      // Get all books and score them by word matches
+      const allBooks = await ctx.db.select().from(books);
+
+      // Find best matching book
+      let bestMatch: any = null;
+      let bestScore = 0;
+
+      for (const book of allBooks) {
+        const bookWords = extractWords(book.title || '');
+        let matchCount = 0;
+
+        // Count how many search words appear in the book title
+        for (const searchWord of searchWords) {
+          if (bookWords.includes(searchWord)) {
+            matchCount++;
+          }
+        }
+
+        // Also check author match if provided
+        if (input.author && book.author) {
+          const authorWords = extractWords(input.author);
+          const bookAuthorWords = extractWords(book.author);
+          for (const searchWord of authorWords) {
+            if (bookAuthorWords.includes(searchWord)) {
+              matchCount += 0.5; // Author match is worth half a title match
+            }
+          }
+        }
+
+        // Require at least 2 word matches (or 1 with author)
+        if (matchCount >= 2 && matchCount > bestScore) {
+          bestMatch = book;
+          bestScore = matchCount;
+        }
+      }
+
+      if (!bestMatch) {
+        return null;
+      }
+
+      return {
+        ...bestMatch,
+        genres: bestMatch.genres ? JSON.parse(bestMatch.genres) : [],
       };
     }),
 

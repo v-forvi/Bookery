@@ -13,7 +13,14 @@ interface TRPCProviderProps {
 }
 
 export function TRPCProvider({ children }: TRPCProviderProps) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 0, // Data is immediately stale, ensuring refetch on input changes
+        refetchOnWindowFocus: false,
+      },
+    },
+  }));
   const [trpcClient] = useState(() =>
     trpc.createClient({
       links: [

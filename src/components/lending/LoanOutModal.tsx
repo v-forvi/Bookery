@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { trpc as api } from '@/client/trpc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,11 +22,12 @@ interface LoanOutModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  preselectedBook?: Book | null;
 }
 
 type Step = 'select-method' | 'scanning' | 'confirm';
 
-export function LoanOutModal({ isOpen, onClose, onSuccess }: LoanOutModalProps) {
+export function LoanOutModal({ isOpen, onClose, onSuccess, preselectedBook }: LoanOutModalProps) {
   const [step, setStep] = useState<Step>('select-method');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [personName, setPersonName] = useState('');
@@ -35,6 +36,17 @@ export function LoanOutModal({ isOpen, onClose, onSuccess }: LoanOutModalProps) 
   const [loading, setLoading] = useState(false);
 
   const loanOutMutation = api.loans.loanOut.useMutation();
+
+  // When preselectedBook changes, skip directly to confirm step
+  useEffect(() => {
+    if (preselectedBook) {
+      setSelectedBook(preselectedBook);
+      setStep('confirm');
+    } else {
+      setSelectedBook(null);
+      setStep('select-method');
+    }
+  }, [preselectedBook, isOpen]);
 
   const handleBookSelect = (book: Book) => {
     setSelectedBook(book);
@@ -168,13 +180,24 @@ export function LoanOutModal({ isOpen, onClose, onSuccess }: LoanOutModalProps) 
             </div>
 
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setStep('select-method')}
-                disabled={loading}
-              >
-                Back
-              </Button>
+              {preselectedBook ? (
+                // When book is preselected (from book detail page), back button closes modal
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setStep('select-method')}
+                  disabled={loading}
+                >
+                  Back
+                </Button>
+              )}
               <Button
                 onClick={handleConfirm}
                 disabled={!personName.trim() || loading}
