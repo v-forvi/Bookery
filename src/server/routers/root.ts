@@ -113,7 +113,7 @@ export const booksRouter = router({
         author: z.string().min(1),
         isbn: z.string().optional(),
         isbn13: z.string().optional(),
-        coverUrl: z.string().url().optional(),
+        coverUrl: z.string().optional(),
         description: z.string().optional(),
         genres: z.array(z.string()).optional(),
         publicationYear: z.number().int().min(-1000).max(2100).optional(),
@@ -122,14 +122,26 @@ export const booksRouter = router({
         language: z.string().length(2).default("en"),
         source: z.enum(["google_books", "openlibrary", "manual"]),
         externalId: z.string().optional(),
+        // Lending feature: ownership fields
+        ownership: z.enum(['owned', 'borrowed']).default('owned'),
+        borrowedFrom: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const { ownership, borrowedFrom, genres, ...rest } = input;
+
+      if (ownership === 'borrowed' && !borrowedFrom) {
+        throw new Error("borrowedFrom is required when ownership is 'borrowed'");
+      }
+
       const [book] = await ctx.db
         .insert(books)
         .values({
-          ...input,
-          genres: input.genres ? JSON.stringify(input.genres) : null,
+          ...rest,
+          genres: genres ? JSON.stringify(genres) : null,
+          ownership,
+          borrowedFrom: ownership === 'borrowed' ? borrowedFrom : null,
+          status: ownership === 'borrowed' ? 'borrowed' : 'available',
         })
         .returning();
 
