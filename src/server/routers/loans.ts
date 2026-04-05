@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { loans, books } from "../schema";
-import { eq, and, desc, like, or, isNull } from "drizzle-orm";
+import { eq, and, desc, like, or, isNull, sql } from "drizzle-orm";
 import { dateValidationService } from "../services/date-validation.service";
 
 // Validation schemas
@@ -148,6 +148,60 @@ export const loansRouter = router({
       return {
         loan: updatedLoan,
         book,
+      };
+    }),
+
+  // Add a borrowed book to library
+  borrowIn: publicProcedure
+    .input(z.object({
+      bookData: z.object({
+        title: z.string(),
+        author: z.string(),
+        isbn: z.string().optional(),
+        coverUrl: z.string().optional(),
+        description: z.string().optional(),
+        genres: z.array(z.string()).optional(),
+      }),
+      borrowedFrom: z.string().min(1, "Owner name is required"),
+      dateBorrowed: dateValidationService.loanDateSchema,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { bookData, borrowedFrom, dateBorrowed } = input;
+
+      // Validate date is not in future
+      if (!dateValidationService.isNotInFuture(dateBorrowed)) {
+        throw new Error("Borrowed date cannot be in the future");
+      }
+
+      // Create book record
+      const [newBook] = await ctx.db
+        .insert(books)
+        .values({
+          title: bookData.title,
+          author: bookData.author,
+          isbn: bookData.isbn,
+          coverUrl: bookData.coverUrl,
+          description: bookData.description,
+          genres: bookData.genres ? JSON.stringify(bookData.genres) : null,
+          ownership: 'borrowed',
+          status: 'borrowed',
+          borrowedFrom,
+          source: 'manual',
+          dateAdded: sql`CURRENT_TIMESTAMP`,
+        })
+        .returning();
+
+      // Create loan record (type 'in')
+      await ctx.db.insert(loans).values({
+        bookId: newBook.id,
+        loanType: 'in',
+        personName: borrowedFrom,
+        personNameNormalized: borrowedFrom.toLowerCase().trim(),
+        loanDate: dateBorrowed,
+      });
+
+      return {
+        book: newBook,
       };
     }),
 });
