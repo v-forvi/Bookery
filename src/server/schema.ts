@@ -27,6 +27,12 @@ export const books = sqliteTable("books", {
   readingStatus: text("reading_status").default("unread"), // 'unread' | 'reading' | 'paused' | 'completed'
   owner: text("owner").default("me"), // 'me' or person's name for borrowed books
   lastAnalyzed: text("last_analyzed"), // Timestamp of last concept extraction (NULL = never analyzed)
+
+  // === LENDING FEATURE COLUMNS ===
+  ownership: text("ownership").default("owned"), // 'owned' | 'borrowed'
+  status: text("status").default("available"), // 'available' | 'on_loan' | 'borrowed'
+  borrowedFrom: text("borrowed_from"), // Who owns this book (if borrowed)
+  archivedAt: text("archived_at"), // Soft-delete for returned borrowed books
 });
 
 // Settings: Store user API keys and preferences
