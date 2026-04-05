@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { loans, books } from "../schema";
-import { eq, and, desc, like, or, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, like, or, isNull, isNotNull, sql } from "drizzle-orm";
 import { dateValidationService } from "../services/date-validation.service";
 
 // Validation schemas
@@ -203,5 +203,144 @@ export const loansRouter = router({
       return {
         book: newBook,
       };
+    }),
+
+  // Get loan history for a book
+  getHistory: publicProcedure
+    .input(z.object({
+      bookId: z.number(),
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { bookId, limit, offset } = input;
+
+      const [{ count }] = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(loans)
+        .where(eq(loans.bookId, bookId));
+
+      const loanHistory = await ctx.db
+        .select()
+        .from(loans)
+        .where(eq(loans.bookId, bookId))
+        .orderBy(desc(loans.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      return {
+        loans: loanHistory,
+        total: count,
+      };
+    }),
+
+  // Get all active loans
+  getActive: publicProcedure
+    .query(async ({ ctx }) => {
+      const loansOut = await ctx.db
+        .select({
+          loan: loans,
+          book: books,
+        })
+        .from(loans)
+        .innerJoin(books, eq(loans.bookId, books.id))
+        .where(
+          and(
+            eq(loans.loanType, 'out'),
+            isNull(loans.returnDate)
+          )
+        )
+        .orderBy(desc(loans.createdAt));
+
+      const loansIn = await ctx.db
+        .select({
+          loan: loans,
+          book: books,
+        })
+        .from(loans)
+        .innerJoin(books, eq(loans.bookId, books.id))
+        .where(
+          and(
+            eq(loans.loanType, 'in'),
+            isNull(loans.returnDate)
+          )
+        )
+        .orderBy(desc(loans.createdAt));
+
+      return {
+        loansOut,
+        loansIn,
+        total: loansOut.length + loansIn.length,
+      };
+    }),
+
+  // Get archived borrowed books
+  getArchive: publicProcedure
+    .input(z.object({
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { limit, offset } = input;
+
+      const [{ count }] = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(books)
+        .where(
+          and(
+            eq(books.ownership, 'borrowed'),
+            isNotNull(books.archivedAt)
+          )
+        );
+
+      const archivedBooks = await ctx.db
+        .select()
+        .from(books)
+        .where(
+          and(
+            eq(books.ownership, 'borrowed'),
+            isNotNull(books.archivedAt)
+          )
+        )
+        .orderBy(desc(books.archivedAt))
+        .limit(limit)
+        .offset(offset);
+
+      return {
+        books: archivedBooks.map(book => ({
+          ...book,
+          genres: book.genres ? JSON.parse(book.genres) : [],
+        })),
+        total: count,
+      };
+    }),
+
+  // Search books by title or author
+  searchBook: publicProcedure
+    .input(z.object({
+      query: z.string().min(2, "Search query must be at least 2 characters"),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { query } = input;
+
+      const results = await ctx.db
+        .select()
+        .from(books)
+        .where(
+          and(
+            or(
+              like(books.title, `%${query}%`),
+              like(books.author, `%${query}%`)
+            ),
+            isNull(books.archivedAt)
+          )
+        )
+        .orderBy(desc(books.dateAdded))
+        .limit(20);
+
+      return results.map(book => ({
+        ...book,
+        genres: book.genres ? JSON.parse(book.genres) : [],
+      }));
     }),
 });
