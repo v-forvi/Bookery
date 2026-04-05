@@ -110,6 +110,13 @@ export function PatronRegistrationGuard() {
       onClose={() => {
         // Can't close - registration is required in Telegram Mini App
       }}
+      onSuccess={() => {
+        // Refresh patron data after successful registration
+        // Use a slight delay to ensure the server has processed the registration
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      }}
     />
   );
 }
