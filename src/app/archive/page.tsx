@@ -33,7 +33,7 @@ export default function ArchivePage() {
         <h1 className="text-2xl font-bold">Borrowed Books Archive</h1>
       </div>
 
-      {data?.books.length === 0 ? (
+      {!data || data.books.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Archive className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />

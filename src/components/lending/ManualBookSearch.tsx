@@ -14,21 +14,20 @@ interface ManualBookSearchProps {
 
 export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) {
   const [query, setQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<Book[]>([]);
-  const [searched, setSearched] = useState(false);
+
+  const searchQuery = api.loans.searchBook.useQuery(
+    { query: searchInput },
+    { enabled: false, retry: false }
+  );
 
   const handleSearch = async () => {
-    if (query.trim().length < 2) return;
+    if (searchInput.trim().length < 2) return;
 
     setSearching(true);
-    setSearched(true);
-
     try {
-      const result = await api.loans.searchBook.query({ query });
-      setResults(result);
-    } catch (error) {
-      console.error('Search failed:', error);
+      await searchQuery.refetch();
     } finally {
       setSearching(false);
     }
@@ -40,13 +39,16 @@ export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) 
     }
   };
 
+  const results = searchQuery.data || [];
+  const searched = searchInput.length > 0;
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Input
           placeholder="Enter book title or author..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           onKeyDown={handleKeyPress}
           autoFocus
         />
@@ -54,10 +56,10 @@ export function ManualBookSearch({ onSelect, onCancel }: ManualBookSearchProps) 
         <div className="flex gap-2">
           <Button
             onClick={handleSearch}
-            disabled={query.trim().length < 2 || searching}
+            disabled={searchInput.trim().length < 2 || searching}
             className="flex-1"
           >
-            {searching ? (
+            {searching || searchQuery.isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Searching...
