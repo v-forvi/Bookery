@@ -345,7 +345,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Your API keys are stored locally in your browser&apos;s database and are never sent to any server other than the respective API provider (Anthropic, Google, or Z.AI). Biblio is a local-first application.
+                  Your API keys are stored locally in your browser&apos;s database and are never sent to any server other than the respective API provider (Anthropic, Google, or Z.AI). Bookery is a local-first application.
                 </p>
               </CardContent>
             </Card>
@@ -382,11 +382,11 @@ export default function SettingsPage() {
           <TabsContent value="about" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>About Biblio</CardTitle>
+                <CardTitle>About Bookery</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-sm">
-                  <strong>Biblio v0.1.0</strong>
+                  <strong>Bookery v0.1.0</strong>
                 </p>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   Pre-Phase 1: Foundation

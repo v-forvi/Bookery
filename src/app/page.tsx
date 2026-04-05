@@ -25,7 +25,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-                Biblio
+                Bookery
               </h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Phase 1: Knowledge Graph

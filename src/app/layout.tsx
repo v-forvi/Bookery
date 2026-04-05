@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Biblio - Personal Library System",
+  title: "Bookery - Personal Library System",
   description: "AI-powered personal library management with conceptual blending",
 };
 
