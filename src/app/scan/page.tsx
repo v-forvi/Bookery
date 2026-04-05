@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, Upload, Check, X, BookOpen, Loader2, Layers, Library, Handshake, ArrowLeft, RotateCcw } from "lucide-react";
 import { trpc } from "@/client/trpc";
@@ -34,7 +34,7 @@ async function callTrpcQuery(procPath: string, input: any) {
   return result;
 }
 
-export default function ScanPage() {
+function ScanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -571,5 +571,17 @@ export default function ScanPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ScanPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    }>
+      <ScanPageContent />
+    </Suspense>
   );
 }

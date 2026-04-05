@@ -2,8 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Network, Scan, Settings, Archive } from "lucide-react";
+import { Home, Network, Scan, Settings, Archive, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LibrarianOnly } from "./RoleGuard";
 
 const navItems = [
   {
@@ -31,6 +32,14 @@ const navItems = [
     name: "Settings",
     href: "/settings",
     icon: Settings,
+  },
+];
+
+const librarianNavItems = [
+  {
+    name: "Admin",
+    href: "/admin/patrons",
+    icon: Shield,
   },
 ];
 
@@ -101,7 +110,49 @@ export function MobileNav() {
               </div>
             </Link>
           );
-        })}
+ })}
+
+        {/* Librarian-only nav items */}
+        <LibrarianOnly>
+          {librarianNavItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center justify-center w-full h-full min-w-0",
+                  "active:scale-95 transition-transform duration-100"
+                )}
+              >
+                <div className="flex flex-col items-center justify-center p-2 rounded-lg min-w-12 min-h-12">
+                  <div
+                    className={cn(
+                      "flex flex-col items-center justify-center p-2 rounded-lg min-w-12 min-h-12",
+                      isActive
+                        ? "text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950"
+                        : "text-purple-500 dark:text-purple-400"
+                    )}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={2} />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium mt-0.5",
+                      isActive
+                        ? "text-purple-600 dark:text-purple-400"
+                        : "text-purple-500 dark:text-purple-400"
+                    )}
+                  >
+                    {item.name}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </LibrarianOnly>
       </div>
 
       {/* Safe area padding for iOS */}

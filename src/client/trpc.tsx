@@ -5,6 +5,7 @@ import type { AppRouter } from "@/server/routers/root";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { httpBatchLink } from "@trpc/client";
+import { getTelegramUser } from "@/lib/telegram";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -26,6 +27,16 @@ export function TRPCProvider({ children }: TRPCProviderProps) {
       links: [
         httpBatchLink({
           url: "/api/trpc",
+          headers: () => {
+            // Add Telegram ID to headers for authentication
+            const telegramUser = getTelegramUser();
+            if (telegramUser?.id) {
+              return {
+                "x-telegram-id": telegramUser.id.toString(),
+              };
+            }
+            return {};
+          },
         }),
       ],
     })

@@ -86,6 +86,17 @@ export const relationships = sqliteTable("relationships", {
 // LENDING FEATURE DATA MODEL
 // ============================================
 
+// Patrons: Telegram Mini App users
+export const patrons = sqliteTable("patrons", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  telegramId: integer("telegram_id").notNull().unique(),
+  telegramUsername: text("telegram_username"),
+  fullName: text("full_name").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  dateRegistered: text("date_registered").notNull(),
+  isLibrarian: integer("is_librarian", { mode: "boolean" }).notNull().default(false),
+});
+
 // Loans: Track books loaned out and borrowed
 export const loans = sqliteTable("loans", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -123,3 +134,7 @@ export type NewRelationship = typeof relationships.$inferInsert;
 // Lending Feature Types
 export type Loan = typeof loans.$inferSelect;
 export type NewLoan = typeof loans.$inferInsert;
+
+// Telegram Mini App Types
+export type Patron = typeof patrons.$inferSelect;
+export type NewPatron = typeof patrons.$inferInsert;

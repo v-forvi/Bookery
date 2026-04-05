@@ -14,6 +14,9 @@ import { graphRouter } from "./graph";
 // Import lending feature router
 import { loansRouter } from "./loans";
 
+// Import Telegram Mini App router
+import { patronsRouter } from "./patrons";
+
 // Books router
 export const booksRouter = router({
   // List all books with pagination and filtering
@@ -839,6 +842,8 @@ export const appRouter = router({
   graph: graphRouter,
   // Lending feature router
   loans: loansRouter,
+  // Telegram Mini App router
+  patrons: patronsRouter,
 });
 
 export type AppRouter = typeof appRouter;

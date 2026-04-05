@@ -4,6 +4,9 @@ import "./globals.css";
 import { TRPCProvider } from "@/client/trpc";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { MobileNav } from "@/components/MobileNav";
+import { TelegramProvider } from "@/components/TelegramProvider";
+import { PatronAuthProvider, PatronRegistrationGuard } from "@/components/PatronAuthContext";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +35,10 @@ export const metadata: Metadata = {
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
   },
+  other: {
+    "telegram:web-app:url": "https://bookery.vercel.app",
+    "telegram:web-app:display-mode": "fullscreen",
+  },
 };
 
 export const viewport: Viewport = {
@@ -49,10 +56,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <TRPCProvider>{children}</TRPCProvider>
+        <TelegramProvider>
+          <TRPCProvider>
+            <PatronAuthProvider>
+              {children}
+              <PatronRegistrationGuard />
+            </PatronAuthProvider>
+          </TRPCProvider>
+        </TelegramProvider>
         <MobileNav />
         <ServiceWorkerRegister />
       </body>
