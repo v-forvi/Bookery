@@ -87,4 +87,67 @@ export const loansRouter = router({
         book: { ...book, status: 'on_loan' as const },
       };
     }),
+
+  // Return a loaned book
+  returnLoan: publicProcedure
+    .input(returnLoanInput)
+    .mutation(async ({ ctx, input }) => {
+      const { bookId, returnDate, returnNotes } = input;
+
+      // Validate date is not in future
+      if (!dateValidationService.isNotInFuture(returnDate)) {
+        throw new Error("Return date cannot be in the future");
+      }
+
+      // Find active loan for this book
+      const activeLoan = await ctx.db
+        .select()
+        .from(loans)
+        .where(
+          and(
+            eq(loans.bookId, bookId),
+            eq(loans.loanType, 'out'),
+            isNull(loans.returnDate)
+          )
+        )
+        .orderBy(desc(loans.createdAt))
+        .limit(1)
+        .then(rows => rows[0]);
+
+      if (!activeLoan) {
+        const book = await ctx.db.select().from(books).where(eq(books.id, bookId)).get();
+        if (!book) {
+          throw new Error("Book not found");
+        }
+        throw new Error("No active loan found for this book");
+      }
+
+      // Validate return date is on or after loan date
+      if (!dateValidationService.isValidReturnDate(activeLoan.loanDate, returnDate)) {
+        throw new Error("Return date cannot be before loan date");
+      }
+
+      // Update loan record
+      const [updatedLoan] = await ctx.db
+        .update(loans)
+        .set({
+          returnDate,
+          returnNotes
+        })
+        .where(eq(loans.id, activeLoan.id))
+        .returning();
+
+      // Update book status back to available
+      await ctx.db
+        .update(books)
+        .set({ status: 'available' })
+        .where(eq(books.id, bookId));
+
+      const book = await ctx.db.select().from(books).where(eq(books.id, bookId)).get();
+
+      return {
+        loan: updatedLoan,
+        book,
+      };
+    }),
 });
