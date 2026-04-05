@@ -31,7 +31,17 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env*.local
+.env.local
+
+# database
+*.db
+*.db-shm
+*.db-wal
+../../data/*.db
+
+# drizzle
+/drizzle
 
 # vercel
 .vercel
