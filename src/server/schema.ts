@@ -77,6 +77,27 @@ export const relationships = sqliteTable("relationships", {
 });
 
 // ============================================
+// LENDING FEATURE DATA MODEL
+// ============================================
+
+// Loans: Track books loaned out and borrowed
+export const loans = sqliteTable("loans", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bookId: integer("book_id")
+    .references(() => books.id, { onDelete: "cascade" })
+    .notNull(),
+  loanType: text("loan_type").notNull(), // 'out' (loaned to others) or 'in' (borrowed from others)
+  personName: text("person_name").notNull(), // Who borrowed the book (out) or who owns it (in)
+  personNameNormalized: text("person_name_normalized").notNull(), // Lowercase for search
+  loanDate: text("loan_date").notNull(), // YYYY-MM-DD format
+  returnDate: text("return_date"), // YYYY-MM-DD format, NULL if not yet returned
+  notes: text("notes"), // Optional notes about the loan
+  returnNotes: text("return_notes"), // Notes when returning (condition, etc.)
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// ============================================
 // TYPES
 // ============================================
 
@@ -92,3 +113,7 @@ export type BookConcept = typeof bookConcepts.$inferSelect;
 export type NewBookConcept = typeof bookConcepts.$inferInsert;
 export type Relationship = typeof relationships.$inferSelect;
 export type NewRelationship = typeof relationships.$inferInsert;
+
+// Lending Feature Types
+export type Loan = typeof loans.$inferSelect;
+export type NewLoan = typeof loans.$inferInsert;
