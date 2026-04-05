@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
 import { books, settings } from "../schema";
-import { eq, desc, like, or } from "drizzle-orm";
+import { eq, desc, like, or, sql } from "drizzle-orm";
 import { visionService } from "../services/vision.service";
 import { googleBooksService } from "../services/google-books.service";
 import { metadataEnrichmentService } from "../services/metadata-enrichment.service";
@@ -160,7 +160,7 @@ export const booksRouter = router({
         author: z.string().min(1).optional(),
         isbn: z.string().optional(),
         isbn13: z.string().optional(),
-        coverUrl: z.string().url().optional(),
+        coverUrl: z.string().optional(),
         description: z.string().optional(),
         genres: z.array(z.string()).optional(),
         publicationYear: z.number().int().min(-1000).max(2100).optional(),
@@ -169,18 +169,37 @@ export const booksRouter = router({
         language: z.string().length(2).optional(),
         source: z.enum(["google_books", "openlibrary", "manual"]).optional(),
         externalId: z.string().optional(),
+        readingStatus: z.string().optional(),
+        // Lending feature: ownership fields
+        ownership: z.enum(['owned', 'borrowed']).optional(),
+        borrowedFrom: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, ownership, borrowedFrom, genres, ...rest } = input;
+
+      const updateData: any = { ...rest };
+
+      if (genres !== undefined) {
+        updateData.genres = genres ? JSON.stringify(genres) : null;
+      }
+
+      if (ownership !== undefined) {
+        updateData.ownership = ownership;
+        if (ownership === 'borrowed') {
+          updateData.status = 'borrowed';
+        }
+      }
+
+      if (borrowedFrom !== undefined) {
+        updateData.borrowedFrom = borrowedFrom;
+      }
+
+      updateData.lastModified = sql`CURRENT_TIMESTAMP`;
 
       const [book] = await ctx.db
         .update(books)
-        .set({
-          ...updateData,
-          genres: updateData.genres ? JSON.stringify(updateData.genres) : undefined,
-          lastModified: new Date().toISOString(),
-        })
+        .set(updateData)
         .where(eq(books.id, id))
         .returning();
 
