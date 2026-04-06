@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -9,29 +9,20 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Determine database paths
-const isVercel = !!process.env.VERCEL_ENV || process.env.NODE_ENV === "production";
+// Path to the database - use public folder directly
+// This works for self-hosting and local development
+const dbPath = join(__dirname, "../../public/biblio.db");
 
-// Path to the bundled seed database (read-only in production)
-const seedDbPath = join(__dirname, "../../public/biblio.db");
+console.log("Database path:", dbPath);
 
-// Path to the writable database
-// In production, use /tmp (writable)
-// In development, use the public database directly for simplicity
-const activeDbPath = isVercel ? "/tmp/biblio.db" : seedDbPath;
-
-console.log("Database config:", { isVercel, seedDbPath, activeDbPath });
-
-// Ensure /tmp exists for production
-if (isVercel && !existsSync("/tmp")) {
-  mkdirSync("/tmp", { recursive: true });
+// Verify database exists
+if (!existsSync(dbPath)) {
+  console.warn("⚠️  Database file not found:", dbPath);
+  console.warn("   Books may not appear until the database is created.");
 }
 
-// Flag to ensure we only initialize once
-let initialized = false;
-
-// Create SQLite connection (will be replaced after seeding in production)
-let sqlite = new Database(activeDbPath);
+// Create SQLite connection
+const sqlite = new Database(dbPath);
 
 // Enable foreign keys
 sqlite.pragma("foreign_keys = ON");
@@ -39,41 +30,14 @@ sqlite.pragma("foreign_keys = ON");
 // Create drizzle instance
 export const db = drizzle(sqlite, { schema });
 
+// Flag to ensure we only initialize once
+let initialized = false;
+
 // Initialize database on first request
 export async function ensureInitialized() {
   if (initialized) return;
 
   try {
-    // In production, seed from bundled database if needed
-    if (isVercel) {
-      const booksCount = sqlite.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number } | undefined;
-
-      // If no books and seed exists, copy seed database
-      if (!booksCount || booksCount.count === 0) {
-        if (existsSync(seedDbPath)) {
-          console.log("Production database empty, seeding from bundled database...");
-
-          // Close existing connection
-          sqlite.close();
-
-          // Copy the seed database file to /tmp
-          const seedData = readFileSync(seedDbPath);
-          writeFileSync(activeDbPath, seedData);
-
-          // Reconnect to the new database
-          sqlite = new Database(activeDbPath);
-          sqlite.pragma("foreign_keys = ON");
-
-          // Update the drizzle instance with new connection
-          Object.assign(db, drizzle(sqlite, { schema }));
-
-          console.log("Database seeded successfully!");
-        } else {
-          console.warn("Seed database not found at:", seedDbPath);
-        }
-      }
-    }
-
     // Ensure patrons table exists
     try {
       sqlite.prepare("SELECT 1 FROM patrons LIMIT 1").get();
@@ -92,9 +56,13 @@ export async function ensureInitialized() {
       `);
     }
 
-    // Log final book count
-    const finalCount = sqlite.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number };
-    console.log("Database initialized with", finalCount?.count ?? 0, "books");
+    // Log book count
+    const booksCount = sqlite.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number } | undefined;
+    const patronsCount = sqlite.prepare("SELECT COUNT(*) as count FROM patrons").get() as { count: number } | undefined;
+    console.log("📚 Database initialized:", {
+      books: booksCount?.count ?? 0,
+      patrons: patronsCount?.count ?? 0,
+    });
 
     initialized = true;
   } catch (error) {
@@ -102,15 +70,8 @@ export async function ensureInitialized() {
   }
 }
 
-// Run initialization when module is imported (for server startup)
-// In production, this happens on first request
-if (isVercel) {
-  // Delay initialization until first API request in production
-  console.log("Vercel environment - database will initialize on first request");
-} else {
-  // Initialize immediately in development
-  ensureInitialized().catch(console.error);
-}
+// Initialize immediately
+ensureInitialized().catch(console.error);
 
 // Export for direct access if needed
 export { sqlite };

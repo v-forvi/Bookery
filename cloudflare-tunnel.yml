@@ -1,0 +1,39 @@
+# Cloudflare Tunnel Configuration for Biblio
+#
+# INSTALLATION (one-time setup):
+# 1. Install cloudflared:
+#    - Linux (Debian/Ubuntu):
+#      wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+#      sudo dpkg -i cloudflared-linux-amd64.deb
+#    - Or use: brew install cloudflared (macOS)
+#
+# 2. Authenticate with Cloudflare (one-time):
+#    cloudflared tunnel login
+#
+# 3. Create a tunnel (one-time):
+#    cloudflared tunnel create biblio-tunnel
+#    # Note the tunnel ID that is returned
+#
+# 4. Update this file with your tunnel ID below
+#
+# 5. Configure the tunnel:
+#    cloudflared tunnel route dns biblio-tunnel your-subdomain.your-domain.com
+#
+# 6. Start the tunnel:
+#    cloudflared tunnel --config cloudflare-tunnel.yml run
+
+tunnel: YOUR_TUNNEL_ID_HERE  # Replace with actual tunnel ID from step 3
+
+credentials-file: /home/illicit_comms/.cloudflared/YOUR_TUNNEL_ID_HERE.json  # Replace with actual path
+
+ingress:
+  # Map the root path to your local Next.js app
+  - hostname: your-subdomain.your-domain.com  # Replace with your domain
+    service: http://localhost:3000
+
+  # Or use a trycloudflare.com URL (no domain needed!)
+  - hostname: *  # This works with trycloudflare.com
+    service: http://localhost:3000
+
+  # Catch-all
+  - service: http_status:404
