@@ -13,6 +13,8 @@ import { PWAInstallButton } from "@/components/PWAInstallButton";
 import { usePatronAuth } from "@/components/PatronAuthContext";
 import { useTelegram } from "@/components/TelegramProvider";
 import { LibrarianOnly, RoleBadge } from "@/components/RoleGuard";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export default function Home() {
   const [loanOutOpen, setLoanOutOpen] = useState(false);
@@ -52,7 +54,13 @@ export default function Home() {
                 </Button>
               </Link>
 
-              {/* Librarian-only admin link */}
+              {/* Role switcher for librarians */}
+              <RoleSwitcher />
+
+              {/* Notification bell for registered users */}
+              <NotificationBell />
+
+              {/* Librarian-only admin link and Add book */}
               <LibrarianOnly>
                 <Link href="/admin/patrons">
                   <Button variant="ghost" size="sm" className="text-purple-600">
@@ -60,15 +68,21 @@ export default function Home() {
                     Admin
                   </Button>
                 </Link>
+                <AddBookDialog />
               </LibrarianOnly>
 
-              <AddBookDialog />
               <PWAInstallButton />
             </nav>
 
             {/* Mobile actions */}
             <div className="md:hidden flex items-center gap-2">
-              {/* Librarian admin indicator on mobile */}
+              {/* Role switcher for librarians on mobile */}
+              <RoleSwitcher />
+
+              {/* Notification bell for registered users on mobile */}
+              <NotificationBell />
+
+              {/* Librarian admin indicator and Add book on mobile */}
               <LibrarianOnly>
                 <Link href="/admin/patrons">
                   <button
@@ -78,19 +92,18 @@ export default function Home() {
                     <Shield className="h-5 w-5" />
                   </button>
                 </Link>
+                <AddBookDialog
+                  trigger={({ setOpen }) => (
+                    <button
+                      type="button"
+                      onClick={() => setOpen(true)}
+                      className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
+                    >
+                      <Plus className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+                    </button>
+                  )}
+                />
               </LibrarianOnly>
-
-              <AddBookDialog
-                trigger={({ setOpen }) => (
-                  <button
-                    type="button"
-                    onClick={() => setOpen(true)}
-                    className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
-                  >
-                    <Plus className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
-                  </button>
-                )}
-              />
             </div>
           </div>
         </div>
@@ -98,24 +111,22 @@ export default function Home() {
 
       <main className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
         {/* Quick Actions - Hide on mobile since they're in bottom nav/scan */}
-        <div className="hidden md:flex gap-2 mb-6">
-          <Button onClick={() => setLoanOutOpen(true)}>
-            Loan Out Book
-          </Button>
-          <Button onClick={() => setReturnOpen(true)} variant="outline">
-            Return Book
-          </Button>
-
-          {/* Librarian-specific quick actions */}
-          <LibrarianOnly>
+        <LibrarianOnly>
+          <div className="hidden md:flex gap-2 mb-6">
+            <Button onClick={() => setLoanOutOpen(true)}>
+              Loan Out Book
+            </Button>
+            <Button onClick={() => setReturnOpen(true)} variant="outline">
+              Return Book
+            </Button>
             <Link href="/admin/patrons">
               <Button variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50">
                 <Shield className="h-4 w-4 mr-1" />
                 Manage Patrons
               </Button>
             </Link>
-          </LibrarianOnly>
-        </div>
+          </div>
+        </LibrarianOnly>
 
         <BookList gridColumns={4} setGridColumns={() => {}} />
       </main>

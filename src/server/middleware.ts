@@ -58,10 +58,14 @@ export const telegramAuth = middleware(async ({ ctx, next }) => {
   // Extract telegramId from headers
   const telegramId = getTelegramIdFromRequest(ctx.req);
 
+  // DEBUG: Log telegram ID
+  console.log('[telegramAuth] telegramId from headers:', telegramId);
+
   // Get patron from database if telegramId is present
   let patron = null;
   if (telegramId) {
     patron = await getPatronByTelegramId(telegramId);
+    console.log('[telegramAuth] patron found:', patron ? 'YES' : 'NO', patron);
   }
 
   return next({

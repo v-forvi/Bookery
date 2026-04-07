@@ -17,8 +17,9 @@ export function TRPCProvider({ children }: TRPCProviderProps) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 0, // Data is immediately stale, ensuring refetch on input changes
+        staleTime: 30 * 1000, // 30 seconds — prevents cascade refetch storms
         refetchOnWindowFocus: false,
+        refetchOnMount: false, // Don't refetch on mount if data is cached
       },
     },
   }));
@@ -30,11 +31,14 @@ export function TRPCProvider({ children }: TRPCProviderProps) {
           headers: () => {
             // Add Telegram ID to headers for authentication
             const telegramUser = getTelegramUser();
+            console.log('[tRPC] telegramUser:', telegramUser);
             if (telegramUser?.id) {
+              console.log('[tRPC] Sending x-telegram-id:', telegramUser.id);
               return {
                 "x-telegram-id": telegramUser.id.toString(),
               };
             }
+            console.log('[tRPC] No telegram user found');
             return {};
           },
         }),

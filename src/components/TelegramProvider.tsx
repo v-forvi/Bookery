@@ -54,9 +54,6 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
         if (webApp.themeParams.button_text_color) {
           root.style.setProperty('--primary-foreground', webApp.themeParams.button_text_color);
         }
-
-        // Note: Theme changes are handled automatically by Telegram
-        // The webApp.themeParams are updated automatically when theme changes
       }
     }
 

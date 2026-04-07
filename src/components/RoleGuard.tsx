@@ -6,21 +6,30 @@ import { Shield, User } from 'lucide-react';
 /**
  * LibrarianOnly - Renders children only for librarians
  * Use for admin-only features like patron management
+ *
+ * @param actual - If true, checks actual librarian status (ignores viewAsPatron toggle).
+ *                 Use this for components like RoleSwitcher that should always be visible
+ *                 to librarians regardless of their view mode.
  */
 export function LibrarianOnly({
   children,
   fallback = null,
+  actual = false,
 }: {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  actual?: boolean; // Check actual librarian status (not affected by view toggle)
 }) {
-  const { isLibrarian, isLoading } = usePatronAuth();
+  const { isLibrarian, actualIsLibrarian, isLoading } = usePatronAuth();
+
+  // Use actual librarian status if `actual` prop is true, otherwise use effective status
+  const hasAccess = actual ? actualIsLibrarian : isLibrarian;
 
   if (isLoading) {
     return <>{fallback}</>;
   }
 
-  if (!isLibrarian) {
+  if (!hasAccess) {
     return <>{fallback}</>;
   }
 
@@ -30,6 +39,9 @@ export function LibrarianOnly({
 /**
  * PatronOnly - Renders children only for non-librarian patrons
  * Use for patron-specific features
+ *
+ * Note: This respects the viewAsPatron toggle - when a librarian views as patron,
+ * they will see PatronOnly content.
  */
 export function PatronOnly({
   children,
@@ -38,17 +50,23 @@ export function PatronOnly({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  const { isLibrarian, isRegistered, isLoading } = usePatronAuth();
+  const { isLibrarian, isPatron, isRegistered, isLoading } = usePatronAuth();
 
   if (isLoading || !isRegistered) {
     return <>{fallback}</>;
   }
 
+  // Hide if user is effectively a librarian (respects viewAsPatron toggle)
   if (isLibrarian) {
     return <>{fallback}</>;
   }
 
-  return <>{children}</>;
+  // Show if user is effectively a patron (includes librarians viewing as patrons)
+  if (isPatron) {
+    return <>{children}</>;
+  }
+
+  return <>{fallback}</>;
 }
 
 /**

@@ -6,10 +6,12 @@ import { trpc } from "@/client/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpen, Calendar, User, ArrowLeft, Edit, Trash2, CheckCircle, ArrowUpDown } from "lucide-react";
+import { BookOpen, Calendar, User, ArrowLeft, Edit, Trash2, CheckCircle, ArrowUpDown, Hand } from "lucide-react";
 import { LoanOutModal } from "@/components/lending/LoanOutModal";
 import { ReturnModal } from "@/components/lending/ReturnModal";
 import { EditBookModal } from "@/components/books/EditBookModal";
+import { PatronOnly, LibrarianOnly } from "@/components/RoleGuard";
+import { usePatronAuth } from "@/components/PatronAuthContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +38,9 @@ export default function BookDetailPage() {
   const params = useParams();
   const router = useRouter();
   const bookId = Number(params.id);
+  const { patron, isRegistered, isLibrarian } = usePatronAuth();
+  const isPatron = isRegistered && !isLibrarian;
+  const currentPatronId = patron?.id;
 
   const [loanOutOpen, setLoanOutOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
@@ -44,6 +49,11 @@ export default function BookDetailPage() {
 
   const { data: book, isLoading: bookLoading } = trpc.books.byId.useQuery(
     { id: bookId },
+    { enabled: !isNaN(bookId) }
+  );
+
+  const { data: activeLoan } = trpc.loans.getActiveLoanForBook.useQuery(
+    { bookId },
     { enabled: !isNaN(bookId) }
   );
 
@@ -56,6 +66,17 @@ export default function BookDetailPage() {
   const deleteBook = trpc.books.delete.useMutation({
     onSuccess: () => {
       router.push("/");
+    },
+  });
+
+  const requestBorrowMutation = trpc.loanRequests.requestBorrow.useMutation({
+    onSuccess: () => {
+      alert("Borrow request sent! The librarian will confirm your request.");
+      utils.loanRequests.getMyActiveLoans.invalidate();
+      utils.books.byId.invalidate({ id: bookId });
+    },
+    onError: (error) => {
+      alert(error.message);
     },
   });
 
@@ -83,11 +104,39 @@ export default function BookDetailPage() {
     );
   }
 
-  const parsedGenres: string[] = Array.isArray(book.genres)
-    ? book.genres
-    : book.genres
-      ? JSON.parse(book.genres)
-      : [];
+  // Smart genre filtering - removes junk, duplicates, category slugs
+  const parsedGenres: string[] = (() => {
+    const rawGenres = Array.isArray(book.genres)
+      ? book.genres
+      : book.genres
+        ? JSON.parse(book.genres)
+        : [];
+
+    // Filter and clean genres
+    const junkWords = new Set(['etc.', 'and', 'the', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by']);
+    const seen = new Set<string>();
+
+    return rawGenres
+      .filter((g: string) => {
+        if (!g || typeof g !== 'string') return false;
+        const trimmed = g.trim();
+        if (trimmed.length === 0) return false;
+        if (trimmed.length < 2) return false; // Single letters
+        if (junkWords.has(trimmed.toLowerCase())) return false;
+        if (trimmed.includes('/')) return false; // Category slugs like "SCIENCE / Life Sciences"
+        if (trimmed.startsWith('effect of')) return false; // Incomplete phrases
+        return true;
+      })
+      .map((g: string) => g.trim())
+      .filter((g: string) => {
+        // Remove duplicates (case-insensitive)
+        const lower = g.toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      })
+      .slice(0, 15); // Limit to top 15 genres
+  })();
 
   const handleDelete = async () => {
     await deleteBook.mutateAsync({ id: book.id });
@@ -96,12 +145,12 @@ export default function BookDetailPage() {
 
   const getStatusBadge = () => {
     if (book.status === 'on_loan') {
-      return <Badge variant="secondary" className="text-xs">On Loan</Badge>;
+      return <Badge variant="secondary" className="text-xs text-zinc-900 dark:text-zinc-100">On Loan</Badge>;
     }
     if (book.status === 'borrowed' && book.borrowedFrom) {
-      return <Badge variant="outline" className="text-xs">Borrowed from {book.borrowedFrom}</Badge>;
+      return <Badge variant="outline" className="text-xs text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700">Borrowed from {book.borrowedFrom}</Badge>;
     }
-    return <Badge variant="default" className="text-xs bg-green-600">Available</Badge>;
+    return <Badge variant="default" className="text-xs bg-green-600 text-white">Available</Badge>;
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -127,25 +176,25 @@ export default function BookDetailPage() {
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-6">
         {/* Book Info Card */}
         <Card>
-          <CardContent className="p-6">
-            <div className="flex gap-6">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6">
               {/* Cover */}
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 mx-auto md:mx-0">
                 {book.coverUrl ? (
                   <img
                     src={book.coverUrl}
                     alt={book.title}
-                    className="w-32 h-48 rounded object-cover shadow-md"
+                    className="w-28 h-40 md:w-32 md:h-48 rounded object-cover shadow-md"
                   />
                 ) : (
-                  <div className="w-32 h-48 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                  <div className="w-28 h-40 md:w-32 md:h-48 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
                     <BookOpen className="h-12 w-12 text-zinc-400" />
                   </div>
                 )}
               </div>
 
               {/* Details */}
-              <div className="flex-1 space-y-3">
+              <div className="flex-1 space-y-2 md:space-y-3 text-center md:text-left w-full">
                 <div>
                   <div className="flex items-start gap-2 flex-wrap">
                     <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
@@ -181,7 +230,7 @@ export default function BookDetailPage() {
                 {parsedGenres.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {parsedGenres.map((genre) => (
-                      <Badge key={genre} variant="outline" className="text-xs">
+                      <Badge key={genre} variant="outline" className="text-xs text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700">
                         {genre}
                       </Badge>
                     ))}
@@ -197,29 +246,72 @@ export default function BookDetailPage() {
 
                 {/* Quick Actions */}
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {book.ownership === 'owned' && book.status === 'available' && (
-                    <Button size="sm" onClick={() => setLoanOutOpen(true)}>
-                      Loan Out
+                  {/* Patron: Request Borrow button */}
+                  <PatronOnly>
+                    {book.ownership === 'owned' && book.status === 'available' && (
+                      <Button
+                        size="sm"
+                        onClick={() => requestBorrowMutation.mutate({ bookId: book.id, requestType: 'borrow' })}
+                        disabled={requestBorrowMutation.isPending}
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        <Hand className="h-4 w-4 mr-1" />
+                        {requestBorrowMutation.isPending ? "Requesting..." : "Request to Borrow"}
+                      </Button>
+                    )}
+                  </PatronOnly>
+
+                  {/* Librarian: Loan Out and Edit/Delete buttons */}
+                  <LibrarianOnly>
+                    {book.ownership === 'owned' && book.status === 'available' && (
+                      <Button
+                        size="sm"
+                        onClick={() => setLoanOutOpen(true)}
+                        className="bg-purple-600 text-white hover:bg-purple-700"
+                      >
+                        Loan Out
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowEditModal(true)}
+                      className="text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
                     </Button>
-                  )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </LibrarianOnly>
+
+                  {/* Return button logic */}
                   {book.status === 'on_loan' && (
-                    <Button size="sm" variant="outline" onClick={() => setReturnOpen(true)}>
-                      Return
-                    </Button>
+                    <>
+                      {/* Show Return button to librarians OR the patron who borrowed it */}
+                      {(isLibrarian || activeLoan?.borrowerId === currentPatronId) ? (
+                        <Button
+                          size="sm"
+                          onClick={() => setReturnOpen(true)}
+                          className="bg-green-600 text-white hover:bg-green-700 border-0"
+                        >
+                          Return
+                        </Button>
+                      ) : (
+                        /* Other patrons see "On Loan" status in red */
+                        <Badge variant="destructive" className="text-sm py-1 px-3">
+                          On Loan
+                        </Badge>
+                      )}
+                    </>
                   )}
-                  <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)}>
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-600 hover:text-red-700"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
-                  </Button>
                 </div>
               </div>
             </div>
@@ -228,7 +320,7 @@ export default function BookDetailPage() {
 
         {/* Loan History Card */}
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
               <ArrowUpDown className="h-5 w-5" />
               Loan History
@@ -243,11 +335,11 @@ export default function BookDetailPage() {
                 {loanHistory.loans.map((loan: LoanRecord) => (
                   <div
                     key={loan.id}
-                    className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 space-y-2"
+                    className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 md:p-4 space-y-2"
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {loan.loanType === 'out' ? (
                             <>
                               <Badge variant="secondary" className="text-xs">
@@ -268,7 +360,7 @@ export default function BookDetailPage() {
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-zinc-500">
+                        <div className="flex items-center gap-3 md:gap-4 text-xs text-zinc-500 flex-wrap">
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
                             Out: {formatDate(loan.loanDate)}
@@ -282,7 +374,7 @@ export default function BookDetailPage() {
                         </div>
                       </div>
                       {!loan.returnDate && (
-                        <Badge variant="default" className="text-xs bg-amber-500">
+                        <Badge variant="default" className="text-xs bg-amber-500 self-start">
                           Active
                         </Badge>
                       )}

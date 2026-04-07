@@ -7,7 +7,7 @@
  * 3. AI Web Search (uses configured API keys, smartest but slowest)
  */
 
-import { googleBooksService, BookMatch } from "./google-books.service";
+import { googleBooksService, BookMatch, RateLimitError } from "./google-books.service";
 import { openLibraryService, OLBookMatch } from "./openlibrary.service";
 import { aiMetadataService, AIMetadataMatch } from "./ai-metadata.service";
 
@@ -126,7 +126,12 @@ export class MetadataEnrichmentService {
         return fromGoogleBooks(googleResults[0]);
       }
     } catch (error) {
-      console.warn('Google Books lookup failed:', error);
+      if (error instanceof RateLimitError) {
+        console.warn('[MetadataEnrichment] Google Books rate limited, using OpenLibrary fallback');
+      } else {
+        console.warn('[MetadataEnrichment] Google Books lookup failed:', error);
+      }
+      // Fall through to OpenLibrary
     }
 
     // 2. Try OpenLibrary (free, no API key)

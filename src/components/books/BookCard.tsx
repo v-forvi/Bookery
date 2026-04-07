@@ -45,12 +45,37 @@ export function BookCard({ book, onEdit }: BookCardProps) {
     setShowDeleteDialog(false);
   };
 
-  // Parse genres - handle both string and array
-  const parsedGenres: string[] = Array.isArray(book.genres)
-    ? book.genres
-    : book.genres
-      ? JSON.parse(book.genres)
-      : [];
+  // Smart genre filtering - removes junk, duplicates, category slugs
+  const parsedGenres: string[] = (() => {
+    const rawGenres = Array.isArray(book.genres)
+      ? book.genres
+      : book.genres
+        ? JSON.parse(book.genres)
+        : [];
+
+    const junkWords = new Set(['etc.', 'and', 'the', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by']);
+    const seen = new Set<string>();
+
+    return rawGenres
+      .filter((g: string) => {
+        if (!g || typeof g !== 'string') return false;
+        const trimmed = g.trim();
+        if (trimmed.length === 0) return false;
+        if (trimmed.length < 2) return false;
+        if (junkWords.has(trimmed.toLowerCase())) return false;
+        if (trimmed.includes('/')) return false; // Category slugs
+        if (trimmed.startsWith('effect of')) return false;
+        return true;
+      })
+      .map((g: string) => g.trim())
+      .filter((g: string) => {
+        const lower = g.toLowerCase();
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      })
+      .slice(0, 8); // Show max 8 genres on card
+  })();
 
   // Default cover placeholder
   const coverUrl = book.coverUrl || undefined;
@@ -59,7 +84,7 @@ export function BookCard({ book, onEdit }: BookCardProps) {
   return (
     <>
       <Card
-        className="group overflow-hidden transition-shadow hover:shadow-lg h-full cursor-pointer"
+        className="group overflow-hidden transition-all hover:shadow-md h-full cursor-pointer bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm"
         onClick={() => router.push(`/book/${book.id}`)}
       >
         <CardContent className="p-3 md:p-5 h-full">
@@ -170,25 +195,6 @@ export function BookCard({ book, onEdit }: BookCardProps) {
                 </DropdownMenu>
               </div>
 
-              {/* Genres - Centered on mobile */}
-              {parsedGenres.length > 0 && (
-                <div className="mt-2 md:mt-3 flex flex-wrap gap-1 md:gap-1.5 justify-center md:justify-start">
-                  {parsedGenres.slice(0, 3).map((genre) => (
-                    <Badge
-                      key={genre}
-                      variant="secondary"
-                      className="text-[10px] md:text-xs px-1.5 md:px-2 py-0"
-                    >
-                      {genre}
-                    </Badge>
-                  ))}
-                  {parsedGenres.length > 3 && (
-                    <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 md:px-2 py-0">
-                      +{parsedGenres.length - 3}
-                    </Badge>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </CardContent>

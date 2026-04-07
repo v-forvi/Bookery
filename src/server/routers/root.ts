@@ -3,9 +3,10 @@ import { router, publicProcedure } from "../trpc";
 import { books, settings } from "../schema";
 import { eq, desc, or, sql, isNull } from "drizzle-orm";
 import { visionService } from "../services/vision.service";
-import { googleBooksService } from "../services/google-books.service";
+import { googleBooksService, RateLimitError } from "../services/google-books.service";
 import { metadataEnrichmentService } from "../services/metadata-enrichment.service";
 import { conceptExtractionService } from "../services/concept-extraction.service";
+import { openLibraryService } from "../services/openlibrary.service";
 
 // Import Phase 1 routers
 import { conceptsRouter } from "./concepts";
@@ -16,6 +17,12 @@ import { loansRouter } from "./loans";
 
 // Import Telegram Mini App router
 import { patronsRouter } from "./patrons";
+
+// Import loan requests router
+import { loanRequestsRouter } from "./loan-requests";
+
+// Import notifications router
+import { notificationsRouter } from "./notifications";
 
 // Books router
 export const booksRouter = router({
@@ -513,7 +520,7 @@ export const booksRouter = router({
       return { added, skipped };
     }),
 
-  // Search Google Books API for external metadata
+  // Search Google Books API for external metadata (with OpenLibrary fallback)
   searchExternal: publicProcedure
     .input(
       z.object({
@@ -529,14 +536,48 @@ export const booksRouter = router({
         throw new Error("At least one search parameter (title, author, or isbn) is required");
       }
 
-      const results = await googleBooksService.search({
-        title: input.title,
-        author: input.author,
-        isbn: input.isbn,
-        maxResults: input.maxResults,
-      });
+      // Try Google Books first
+      try {
+        const results = await googleBooksService.search({
+          title: input.title,
+          author: input.author,
+          isbn: input.isbn,
+          maxResults: input.maxResults,
+        });
+        return results;
+      } catch (error) {
+        // If rate limited (429), try OpenLibrary as fallback
+        if (error instanceof RateLimitError) {
+          console.warn('[searchExternal] Google Books rate limited, using OpenLibrary fallback');
 
-      return results;
+          // Search OpenLibrary and convert to Google Books format
+          const olResults = await openLibraryService.search({
+            title: input.title,
+            author: input.author,
+            isbn: input.isbn,
+            maxResults: input.maxResults,
+          });
+
+          // Convert OpenLibrary results to Google Books format
+          return olResults.map(ol => ({
+            id: ol.id,
+            title: ol.title,
+            authors: ol.authors,
+            isbn: ol.isbn || ol.isbn13,
+            isbn13: ol.isbn13,
+            coverUrl: ol.coverUrl,
+            description: ol.description,
+            genres: ol.genres,
+            publicationYear: ol.publicationYear,
+            pageCount: ol.pageCount,
+            publisher: ol.publisher,
+            language: ol.language,
+            previewLink: null,
+            confidence: ol.confidence,
+          }));
+        }
+        throw error;
+      }
     }),
 
   // Get a book from Google Books by volume ID
@@ -844,6 +885,10 @@ export const appRouter = router({
   loans: loansRouter,
   // Telegram Mini App router
   patrons: patronsRouter,
+  // Loan requests router
+  loanRequests: loanRequestsRouter,
+  // Notifications router
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -10,6 +10,17 @@
 const GOOGLE_BOOKS_BASE = 'https://www.googleapis.com/books/v1/volumes';
 
 /**
+ * Rate limit error - thrown when Google Books API returns 429
+ * Exported so metadata enrichment service can detect and handle gracefully
+ */
+export class RateLimitError extends Error {
+  constructor(message: string = 'Google Books API rate limit exceeded (429)') {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
+/**
  * Raw industry identifier from Google Books API
  */
 export interface GoogleIndustryIdentifier {
@@ -228,14 +239,29 @@ export class GoogleBooksService {
       params.append('q', parts.join(' '));
     }
 
-    const response = await fetch(`${GOOGLE_BOOKS_BASE}?${params.toString()}`);
+    const url = `${GOOGLE_BOOKS_BASE}?${params.toString()}`;
+    console.log('[GoogleBooksService] Searching:', url);
+
+    // Add 10 second timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
+      // Check for rate limit (429)
+      if (response.status === 429) {
+        console.warn('[GoogleBooksService] Rate limited (429), falling back to OpenLibrary');
+        throw new RateLimitError();
+      }
+      console.error('[GoogleBooksService] API error:', response.status, response.statusText);
       throw new Error(`Google Books API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
     const volumes: GoogleBooksVolume[] = data.items || [];
+    console.log('[GoogleBooksService] Found volumes:', volumes.length);
 
     // Process and map to BookMatch format
     return volumes
@@ -247,9 +273,19 @@ export class GoogleBooksService {
    * Get a single book by its Google Books ID
    */
   async getById(volumeId: string): Promise<BookMatch | null> {
-    const response = await fetch(`${GOOGLE_BOOKS_BASE}/${volumeId}`);
+    // Add 10 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(`${GOOGLE_BOOKS_BASE}/${volumeId}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
+      // Check for rate limit (429)
+      if (response.status === 429) {
+        console.warn('[GoogleBooksService] Rate limited (429), falling back to OpenLibrary');
+        throw new RateLimitError();
+      }
       throw new Error(`Google Books API error: ${response.status} ${response.statusText}`);
     }
 

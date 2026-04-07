@@ -10,6 +10,7 @@ const loanOutInput = z.object({
   personName: z.string().min(1, "Person name is required"),
   loanDate: dateValidationService.loanDateSchema,
   notes: z.string().optional(),
+  borrowerId: z.number().optional(), // Patron ID (for Mini App loans)
 });
 
 const returnLoanInput = z.object({
@@ -23,7 +24,7 @@ export const loansRouter = router({
   loanOut: publicProcedure
     .input(loanOutInput)
     .mutation(async ({ ctx, input }) => {
-      const { bookId, personName, loanDate, notes } = input;
+      const { bookId, personName, loanDate, notes, borrowerId } = input;
 
       // Validate date is not in future
       if (!dateValidationService.isNotInFuture(loanDate)) {
@@ -71,6 +72,7 @@ export const loansRouter = router({
           loanType: 'out',
           personName,
           personNameNormalized,
+          borrowerId,
           loanDate,
           notes,
         })
@@ -203,6 +205,31 @@ export const loansRouter = router({
       return {
         book: newBook,
       };
+    }),
+
+  // Get active loan for a book (returns null if no active loan)
+  getActiveLoanForBook: publicProcedure
+    .input(z.object({
+      bookId: z.number(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { bookId } = input;
+
+      const activeLoan = await ctx.db
+        .select()
+        .from(loans)
+        .where(
+          and(
+            eq(loans.bookId, bookId),
+            eq(loans.loanType, 'out'),
+            isNull(loans.returnDate)
+          )
+        )
+        .orderBy(desc(loans.createdAt))
+        .limit(1)
+        .then(rows => rows[0]);
+
+      return activeLoan ?? null;
     }),
 
   // Get loan history for a book

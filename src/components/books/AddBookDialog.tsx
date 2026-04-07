@@ -18,6 +18,7 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Manual entry form state
   const [manualForm, setManualForm] = useState({
@@ -46,6 +47,7 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
       setOpen(false);
       resetManualForm();
       setSearchResults([]);
+      setSearchError(null);
     },
   });
 
@@ -86,6 +88,9 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
     if (!searchQuery.title && !searchQuery.author && !searchQuery.isbn) return;
 
     setIsSearching(true);
+    setSearchError(null);
+    console.log('[AddBookDialog] Starting search with query:', searchQuery);
+
     try {
       const results = await trpcClient.books.searchExternal.fetch({
         title: searchQuery.title || undefined,
@@ -93,9 +98,16 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
         isbn: searchQuery.isbn || undefined,
         maxResults: 5,
       });
+      console.log('[AddBookDialog] Search results:', results);
       setSearchResults(results);
+
+      if (results.length === 0) {
+        setSearchError('No books found. Try different search terms.');
+      }
     } catch (error) {
-      console.error("Search failed:", error);
+      console.error('[AddBookDialog] Search failed:', error);
+      setSearchError(error instanceof Error ? error.message : 'Search failed. Please try again.');
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -137,7 +149,7 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
             <SheetTitle className="text-base">Add a Book</SheetTitle>
             <SheetDescription className="text-xs">Search or enter manually</SheetDescription>
           </div>
-          <SheetClose onClick={() => { setOpen(false); setSearchResults([]); }}>
+          <SheetClose onClick={() => { setOpen(false); setSearchResults([]); setSearchError(null); }}>
             <X className="h-5 w-5" />
           </SheetClose>
         </SheetHeader>
@@ -178,7 +190,10 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
                   id="search-isbn"
                   placeholder="0374533555"
                   value={searchQuery.isbn}
-                  onChange={(e) => setSearchQuery({ ...searchQuery, isbn: e.target.value })}
+                  onChange={(e) => {
+                    setSearchQuery({ ...searchQuery, isbn: e.target.value });
+                    setSearchError(null);
+                  }}
                   className="h-10"
                 />
               </div>
@@ -191,7 +206,10 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
                   id="search-title"
                   placeholder="Book title"
                   value={searchQuery.title}
-                  onChange={(e) => setSearchQuery({ ...searchQuery, title: e.target.value })}
+                  onChange={(e) => {
+                    setSearchQuery({ ...searchQuery, title: e.target.value });
+                    setSearchError(null);
+                  }}
                   className="h-10"
                 />
               </div>
@@ -201,18 +219,28 @@ export function AddBookDialog({ trigger, buttonClassName }: AddBookDialogProps) 
                   id="search-author"
                   placeholder="Author name"
                   value={searchQuery.author}
-                  onChange={(e) => setSearchQuery({ ...searchQuery, author: e.target.value })}
+                  onChange={(e) => {
+                    setSearchQuery({ ...searchQuery, author: e.target.value });
+                    setSearchError(null);
+                  }}
                   className="h-10"
                 />
               </div>
               <Button
                 onClick={handleSearch}
-                disabled={isSearching || !searchQuery.isbn && !searchQuery.title && !searchQuery.author}
+                disabled={isSearching || (!searchQuery.isbn && !searchQuery.title && !searchQuery.author)}
                 className="w-full h-10"
               >
                 {isSearching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Search Google Books
+                Search Book
               </Button>
+
+              {/* Search Error */}
+              {searchError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
+                </div>
+              )}
 
               {/* Search Results */}
               {searchResults.length > 0 && (

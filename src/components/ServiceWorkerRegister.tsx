@@ -39,10 +39,10 @@ export function ServiceWorkerRegister() {
       });
 
     // Listen for controlling service worker changes
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      // Reload the page when new service worker takes control
-      window.location.reload();
-    });
+    // DISABLED: Auto-reload was causing random page refreshes every few minutes
+    // navigator.serviceWorker.addEventListener("controllerchange", () => {
+    //   window.location.reload();
+    // });
   }, []);
 
   const handleUpdateClick = () => {

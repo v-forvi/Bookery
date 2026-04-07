@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useTelegram } from './TelegramProvider';
 import { trpc } from '@/client/trpc';
-import { PatronRegistrationModal } from './PatronRegistrationModal';
 
 export interface Patron {
   id: number;
@@ -19,8 +18,12 @@ interface PatronAuthContextType {
   patron: Patron | null;
   isLoading: boolean;
   isRegistered: boolean;
-  isLibrarian: boolean;
+  isLibrarian: boolean; // Effective role (respects viewAsPatron toggle)
+  isPatron: boolean; // true if registered but not a librarian (effective)
+  actualIsLibrarian: boolean; // Real librarian status (NOT affected by view toggle)
   needsRegistration: boolean;
+  viewAsPatron: boolean; // Librarian-only toggle to view as patron
+  setViewAsPatron: (value: boolean) => void;
   refreshPatron: () => void;
 }
 
@@ -29,7 +32,11 @@ const PatronAuthContext = createContext<PatronAuthContextType>({
   isLoading: true,
   isRegistered: false,
   isLibrarian: false,
+  isPatron: false,
+  actualIsLibrarian: false,
   needsRegistration: false,
+  viewAsPatron: false,
+  setViewAsPatron: () => {},
   refreshPatron: () => {},
 });
 
@@ -39,39 +46,34 @@ export function usePatronAuth() {
 
 export function PatronAuthProvider({ children }: { children: React.ReactNode }) {
   const { user: telegramUser, isReady: telegramReady, isTelegram } = useTelegram();
-  const [patron, setPatron] = useState<Patron | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [viewAsPatron, setViewAsPatron] = useState(false);
 
-  // Only run on client side
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Get current patron using Telegram auth (from headers)
-  // The 'me' endpoint uses telegramAuth middleware which extracts telegramId from headers
-  const { data: patronData, refetch } = trpc.patrons.me.useQuery(undefined, {
-    enabled: mounted && telegramReady && isTelegram && !!telegramUser?.id,
+  const shouldQuery = mounted && telegramReady && isTelegram && !!telegramUser?.id;
+
+  const { data: patronData, isLoading: isQueryLoading, refetch } = trpc.patrons.me.useQuery(undefined, {
+    enabled: shouldQuery,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: false,
+    staleTime: 60 * 1000, // Cache for 60s — patron data doesn't change often
   });
 
-  useEffect(() => {
-    if (!isTelegram || !telegramReady) {
-      // Not in Telegram - no patron needed
-      setPatron(null);
-      setIsLoading(false);
-      return;
-    }
-
-    if (patronData !== undefined) {
-      setPatron(patronData || null);
-      setIsLoading(false);
-    }
-  }, [patronData, isTelegram, telegramReady]);
-
+  // Derive everything — no useState mirrors that cause extra render cycles
+  const isLoading = shouldQuery && isQueryLoading;
+  const patron = patronData ?? null;
   const isRegistered = !!patron;
-  const isLibrarian = patron?.isLibrarian || false;
-  const needsRegistration = telegramReady && isTelegram && !!telegramUser && !isRegistered;
+  const actualIsLibrarian = patron?.isLibrarian ?? false; // Real librarian status from DB
+  const isPatron = isRegistered && !actualIsLibrarian;
+  const needsRegistration = !isLoading && telegramReady && isTelegram && !!telegramUser && !isRegistered;
+
+  // Effective role based on view toggle
+  const effectiveIsLibrarian = actualIsLibrarian && !viewAsPatron;
+  const effectiveIsPatron = (isPatron || (actualIsLibrarian && viewAsPatron));
 
   const refreshPatron = () => {
     refetch();
@@ -83,8 +85,12 @@ export function PatronAuthProvider({ children }: { children: React.ReactNode }) 
         patron,
         isLoading,
         isRegistered,
-        isLibrarian,
+        isLibrarian: effectiveIsLibrarian,
+        isPatron: effectiveIsPatron,
+        actualIsLibrarian, // Real status, not affected by view toggle
         needsRegistration,
+        viewAsPatron,
+        setViewAsPatron,
         refreshPatron,
       }}
     >
@@ -94,29 +100,9 @@ export function PatronAuthProvider({ children }: { children: React.ReactNode }) 
 }
 
 /**
- * Guard component that shows registration modal when needed
- * Only shows in Telegram Mini App when user is not registered
+ * Registration guard - DISABLED, returns null
+ * Manual registration will be handled separately
  */
 export function PatronRegistrationGuard() {
-  const { needsRegistration } = usePatronAuth();
-
-  // For web (non-Telegram), don't show registration
-  const { isTelegram } = useTelegram();
-  if (!isTelegram) return null;
-
-  return (
-    <PatronRegistrationModal
-      isOpen={needsRegistration}
-      onClose={() => {
-        // Can't close - registration is required in Telegram Mini App
-      }}
-      onSuccess={() => {
-        // Refresh patron data after successful registration
-        // Use a slight delay to ensure the server has processed the registration
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      }}
-    />
-  );
+  return null;
 }

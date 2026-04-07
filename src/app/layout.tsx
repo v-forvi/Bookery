@@ -5,7 +5,7 @@ import { TRPCProvider } from "@/client/trpc";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { MobileNav } from "@/components/MobileNav";
 import { TelegramProvider } from "@/components/TelegramProvider";
-import { PatronAuthProvider, PatronRegistrationGuard } from "@/components/PatronAuthContext";
+import { PatronAuthProvider } from "@/components/PatronAuthContext";
 import Script from "next/script";
 
 const geistSans = Geist({
@@ -69,12 +69,11 @@ export default function RootLayout({
           <TRPCProvider>
             <PatronAuthProvider>
               {children}
-              <PatronRegistrationGuard />
             </PatronAuthProvider>
           </TRPCProvider>
         </TelegramProvider>
         <MobileNav />
-        <ServiceWorkerRegister />
+        {/* ServiceWorkerRegister temporarily disabled for debugging */}
       </body>
     </html>
   );

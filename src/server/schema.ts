@@ -106,12 +106,39 @@ export const loans = sqliteTable("loans", {
   loanType: text("loan_type").notNull(), // 'out' (loaned to others) or 'in' (borrowed from others)
   personName: text("person_name").notNull(), // Who borrowed the book (out) or who owns it (in)
   personNameNormalized: text("person_name_normalized").notNull(), // Lowercase for search
+  borrowerId: integer("borrower_id").references(() => patrons.id, { onDelete: "set null" }), // Patron who borrowed (for Mini App)
   loanDate: text("loan_date").notNull(), // YYYY-MM-DD format
   returnDate: text("return_date"), // YYYY-MM-DD format, NULL if not yet returned
   notes: text("notes"), // Optional notes about the loan
   returnNotes: text("return_notes"), // Notes when returning (condition, etc.)
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Loan Requests: Track borrow/return requests from patrons
+export const loanRequests = sqliteTable("loan_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  loanId: integer("loan_id").references(() => loans.id, { onDelete: "cascade" }).notNull(),
+  requestType: text("request_type").notNull(), // 'borrow' or 'return'
+  initiatedBy: text("initiated_by").notNull(), // 'patron' or 'librarian'
+  initiatorId: integer("initiator_id").references(() => patrons.id, { onDelete: "set null" }), // patron_id
+  status: text("status").default("pending"), // 'pending', 'confirmed', 'rejected', 'cancelled'
+  requestedAt: text("requested_at").notNull(),
+  confirmedAt: text("confirmed_at"),
+  confirmedBy: integer("confirmed_by").references(() => patrons.id, { onDelete: "set null" }), // librarian_id
+  notes: text("notes"),
+});
+
+// Notifications: In-app notifications for patrons
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  patronId: integer("patron_id").references(() => patrons.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(), // 'borrow_confirmed', 'return_confirmed', 'loan_reminder', etc.
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  link: text("link"), // Optional link to relevant page
+  read: integer("read", { mode: "boolean" }).default(false).notNull(),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
 // ============================================
@@ -134,6 +161,10 @@ export type NewRelationship = typeof relationships.$inferInsert;
 // Lending Feature Types
 export type Loan = typeof loans.$inferSelect;
 export type NewLoan = typeof loans.$inferInsert;
+export type LoanRequest = typeof loanRequests.$inferSelect;
+export type NewLoanRequest = typeof loanRequests.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 
 // Telegram Mini App Types
 export type Patron = typeof patrons.$inferSelect;
