@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     ],
   },
   other: {
-    "telegram:web-app:url": "https://bookery.vercel.app",
+    "telegram:web-app:url": "https://web-virid-three-19.vercel.app",
     "telegram:web-app:display-mode": "fullscreen",
   },
 };
