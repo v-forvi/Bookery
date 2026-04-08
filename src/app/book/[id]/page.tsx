@@ -143,16 +143,6 @@ export default function BookDetailPage() {
     setShowDeleteDialog(false);
   };
 
-  const getStatusBadge = () => {
-    if (book.status === 'on_loan') {
-      return <Badge variant="secondary" className="text-xs text-zinc-900 dark:text-zinc-100">On Loan</Badge>;
-    }
-    if (book.status === 'borrowed' && book.borrowedFrom) {
-      return <Badge variant="outline" className="text-xs text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700">Borrowed from {book.borrowedFrom}</Badge>;
-    }
-    return <Badge variant="default" className="text-xs bg-green-600 text-white">Available</Badge>;
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString();
@@ -196,12 +186,9 @@ export default function BookDetailPage() {
               {/* Details */}
               <div className="flex-1 space-y-2 md:space-y-3 text-center md:text-left w-full">
                 <div>
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                      {book.title}
-                    </h1>
-                    {getStatusBadge()}
-                  </div>
+                  <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                    {book.title}
+                  </h1>
                   <p className="text-lg text-zinc-600 dark:text-zinc-400 mt-1">
                     by {book.author}
                   </p>
@@ -305,10 +292,12 @@ export default function BookDetailPage() {
                           Return
                         </Button>
                       ) : (
-                        /* Other patrons see "On Loan" status in red */
-                        <Badge variant="destructive" className="text-sm py-1 px-3">
+                        /* Other patrons see "On Loan" status - same size as button but not clickable */
+                        <div
+                          className="h-8 px-3 text-xs font-medium rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center"
+                        >
                           On Loan
-                        </Badge>
+                        </div>
                       )}
                     </>
                   )}

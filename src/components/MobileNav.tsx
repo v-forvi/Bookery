@@ -109,8 +109,8 @@ export function MobileNav() {
           );
         })}
 
-        {/* Librarian-only Scan button (centered, primary) */}
-        <LibrarianOnly>
+        {/* Librarian-only Scan button (centered, primary) - always visible to actual librarians */}
+        <LibrarianOnly actual={true}>
           <button
             onClick={() => handleNav(librarianScanItem.href)}
             className={cn(
@@ -133,8 +133,8 @@ export function MobileNav() {
           </button>
         </LibrarianOnly>
 
-        {/* Librarian-only nav items */}
-        <LibrarianOnly>
+        {/* Librarian-only nav items - always visible to actual librarians */}
+        <LibrarianOnly actual={true}>
           {librarianNavItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;

@@ -6,7 +6,7 @@ import { LoanOutModal } from '@/components/lending/LoanOutModal';
 import { ReturnModal } from '@/components/lending/ReturnModal';
 import { AddBookDialog } from '@/components/books/AddBookDialog';
 import { Button } from "@/components/ui/button";
-import { Plus, Shield } from "lucide-react";
+import { Plus, Shield, Scan } from "lucide-react";
 import Link from "next/link";
 import { trpc } from "@/client/trpc";
 import { PWAInstallButton } from "@/components/PWAInstallButton";
@@ -43,6 +43,14 @@ export default function Home() {
 
             {/* Desktop nav - hide on mobile */}
             <nav className="hidden md:flex items-center gap-2">
+              <LibrarianOnly>
+                <Link href="/scan">
+                  <Button variant="default" size="sm" className="bg-purple-600 hover:bg-purple-700">
+                    <Scan className="h-4 w-4 mr-1" />
+                    Scan
+                  </Button>
+                </Link>
+              </LibrarianOnly>
               <Link href="/graph">
                 <Button variant="ghost" size="sm">
                   View Graph
@@ -113,6 +121,12 @@ export default function Home() {
         {/* Quick Actions - Hide on mobile since they're in bottom nav/scan */}
         <LibrarianOnly>
           <div className="hidden md:flex gap-2 mb-6">
+            <Link href="/scan">
+              <Button>
+                <Scan className="h-4 w-4 mr-1" />
+                Scan Book
+              </Button>
+            </Link>
             <Button onClick={() => setLoanOutOpen(true)}>
               Loan Out Book
             </Button>

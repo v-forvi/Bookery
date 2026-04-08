@@ -81,15 +81,19 @@ export function BookCard({ book, onEdit }: BookCardProps) {
   const coverUrl = book.coverUrl || undefined;
   const showPlaceholder = !book.coverUrl;
 
+  // Determine loan status
+  const isOnLoan = book.status === 'on_loan';
+  const isBorrowed = book.status === 'borrowed' && book.borrowedFrom;
+
   return (
     <>
       <Card
-        className="group overflow-hidden transition-all hover:shadow-md h-full cursor-pointer bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm"
+        className="group overflow-hidden transition-all hover:shadow-md h-full cursor-pointer bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm relative"
         onClick={() => router.push(`/book/${book.id}`)}
       >
         <CardContent className="p-3 md:p-5 h-full">
           {/* Desktop: Horizontal layout, Mobile: Vertical layout */}
-          <div className="flex md:gap-5 gap-3 flex-col md:flex-row">
+          <div className="flex md:gap-5 gap-3 flex-col md:flex-row h-full">
             {/* Cover Image - Smaller on mobile */}
             <div className="flex-shrink-0 mx-auto md:mx-0">
               {showPlaceholder ? (
@@ -106,40 +110,12 @@ export function BookCard({ book, onEdit }: BookCardProps) {
             </div>
 
             {/* Book Info */}
-            <div className="min-w-0 flex-1 text-center md:text-left">
+            <div className="min-w-0 flex-1 text-center md:text-left flex flex-col">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  {/* Lending Status Badges - Show above title on mobile */}
-                  {((book as any).status === 'on_loan' || ((book as any).status === 'borrowed' && (book as any).borrowedFrom)) && (
-                    <div className="flex md:hidden justify-center mb-1.5 gap-1.5 flex-wrap">
-                      {(book as any).status === 'on_loan' && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          On Loan
-                        </Badge>
-                      )}
-                      {(book as any).status === 'borrowed' && (book as any).borrowedFrom && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          From {(book as any).borrowedFrom}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-2 text-sm md:text-base">
                     {book.title}
                   </h3>
-                  {/* Desktop badges inline with title */}
-                  <div className="hidden md:flex items-center gap-2 flex-wrap">
-                    {(book as any).status === 'on_loan' && (
-                      <Badge variant="secondary" className="text-xs">
-                        On Loan
-                      </Badge>
-                    )}
-                    {(book as any).status === 'borrowed' && (book as any).borrowedFrom && (
-                      <Badge variant="outline" className="text-xs">
-                        Borrowed from {(book as any).borrowedFrom}
-                      </Badge>
-                    )}
-                  </div>
                   <p className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
                     {book.author}
                   </p>
@@ -195,6 +171,27 @@ export function BookCard({ book, onEdit }: BookCardProps) {
                 </DropdownMenu>
               </div>
 
+              {/* Spacer to push status to bottom */}
+              <div className="flex-1"></div>
+
+              {/* Loan Status - Bottom left */}
+              <div className="text-left mt-2">
+                {isOnLoan && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded uppercase tracking-wide">
+                    On Loan
+                  </span>
+                )}
+                {!isOnLoan && !isBorrowed && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded uppercase tracking-wide">
+                    Available
+                  </span>
+                )}
+                {isBorrowed && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded uppercase tracking-wide">
+                    Borrowed
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
