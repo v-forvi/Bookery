@@ -34,6 +34,7 @@ export default function Home() {
                 <h1 className="text-xl sm:text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
                   Bookery
                 </h1>
+                {/* Last updated: 2025-04-08 */}
                 {/* Show role badge in Telegram Mini App */}
                 {isTelegram && isRegistered && (
                   <RoleBadge className="mt-1" />
