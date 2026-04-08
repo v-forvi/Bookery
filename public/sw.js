@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'bookery-v1';
+const CACHE_NAME = 'bookery-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
