@@ -177,17 +177,17 @@ export function BookCard({ book, onEdit }: BookCardProps) {
               {/* Loan Status - Bottom left */}
               <div className="text-left mt-2">
                 {isOnLoan && (
-                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded uppercase tracking-wide">
+                  <span className="inline-block px-2 py-1 text-xs font-bold bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded uppercase tracking-wide">
                     On Loan
                   </span>
                 )}
                 {!isOnLoan && !isBorrowed && (
-                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded uppercase tracking-wide">
+                  <span className="inline-block px-2 py-1 text-xs font-bold bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700 rounded uppercase tracking-wide">
                     Available
                   </span>
                 )}
                 {isBorrowed && (
-                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded uppercase tracking-wide">
+                  <span className="inline-block px-2 py-1 text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 rounded uppercase tracking-wide">
                     Borrowed
                   </span>
                 )}

@@ -109,33 +109,30 @@ export function MobileNav() {
           );
         })}
 
-        {/* Librarian-only Scan button (centered, primary) - always visible to actual librarians */}
-        <LibrarianOnly actual={true}>
-          <button
-            onClick={() => handleNav(librarianScanItem.href)}
-            className={cn(
-              "flex flex-col items-center justify-center w-full h-full min-w-0 bg-transparent border-0",
-              "active:scale-95 transition-transform duration-100 cursor-pointer"
-            )}
-          >
-            <div className="flex flex-col items-center justify-center relative -mt-6">
-              <div
-                className={cn(
-                  "w-14 h-14 rounded-full flex items-center justify-center shadow-lg",
-                  pathname === librarianScanItem.href
-                    ? "bg-purple-700 text-white"
-                    : "bg-gradient-to-br from-purple-600 to-purple-700 text-white"
-                )}
-              >
-                <librarianScanItem.icon className="h-6 w-6" strokeWidth={2.5} />
-              </div>
+        {/* Scan button - centered, primary */}
+        <button
+          onClick={() => handleNav(librarianScanItem.href)}
+          className={cn(
+            "flex flex-col items-center justify-center w-full h-full min-w-0 bg-transparent border-0",
+            "active:scale-95 transition-transform duration-100 cursor-pointer"
+          )}
+        >
+          <div className="flex flex-col items-center justify-center relative -mt-6">
+            <div
+              className={cn(
+                "w-14 h-14 rounded-full flex items-center justify-center shadow-lg",
+                pathname === librarianScanItem.href
+                  ? "bg-purple-700 text-white"
+                  : "bg-gradient-to-br from-purple-600 to-purple-700 text-white"
+              )}
+            >
+              <librarianScanItem.icon className="h-6 w-6" strokeWidth={2.5} />
             </div>
-          </button>
-        </LibrarianOnly>
+          </div>
+        </button>
 
-        {/* Librarian-only nav items - always visible to actual librarians */}
-        <LibrarianOnly actual={true}>
-          {librarianNavItems.map((item) => {
+        {/* Librarian nav items */}
+        {librarianNavItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
 
@@ -173,7 +170,6 @@ export function MobileNav() {
               </button>
             );
           })}
-        </LibrarianOnly>
 
         {/* Patron-only nav items */}
         <PatronOnly>
